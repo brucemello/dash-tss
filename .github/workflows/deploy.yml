@@ -1,0 +1,40 @@
+name: Deploy Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', '.github/workflows/deploy.yml']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Credenciais do clasp
+        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: Configurar projeto
+        run: |
+          echo "{\"scriptId\":\"${{ secrets.SCRIPT_ID }}\",\"rootDir\":\"src\"}" > .clasp.json
+
+      - name: Enviar código (clasp push)
+        run: clasp push -f
+
+      - name: Atualizar implantação do app da web (mesma URL)
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            clasp deploy -i "$DEPLOYMENT_ID" -d "Deploy ${GITHUB_SHA::7}"
+          else
+            echo "DEPLOYMENT_ID não definido — só o código foi atualizado."
+          fi

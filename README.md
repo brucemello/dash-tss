@@ -1,0 +1,57 @@
+# 📊 Dash TSS — Entregas do Time
+
+Apps Script (planilha Google + app da web) para a TL do time **TSS** acompanhar as entregas dos analistas a partir do Jira de produção, com deploy automático pelo GitHub Actions.
+
+## O que faz
+
+| Recurso | Como funciona |
+|---|---|
+| **Painel colorido** | App da web com KPIs clicáveis (entregas, story points, % no prazo, atrasadas, reprogramadas, tempo médio, em andamento, parados, vencendo, vencidas). Todo card abre a lista de issues para auditoria, com busca e exportação em CSV. |
+| **Fases** | Lê o histórico de status do Jira e calcula início/fim de cada fase por issue (linha do tempo), tempo médio por fase e onde estão as abertas. |
+| **Data acordo** | Marca reprogramação (data alterada no Jira), atraso e mostra a agenda dos próximos 14 dias. |
+| **Lembrete automático** | Todo dia útil, e-mail para cada dev com issues vencendo em até N dias ou já vencidas (TL em cópia). |
+| **Resumo de segunda** | Toda segunda: principais itens parados, vencidos, que vencem na semana e entregas da semana anterior, para a TL (e Google Chat, opcional). |
+| **IA / Code Review / Automação** | Viram KPI pelas **labels** do Jira (configurável) e/ou marcação manual na aba *Base Manual*. Mostra o % de uso no time e por dev. |
+| **Label nova = KPI novo** | Ao adicionar uma label na configuração (planilha ou painel), aparece um card novo com % de uso e auditoria. |
+
+## Abas da planilha
+
+- **⚙️ Configuração** — parâmetros, projetos, labels → KPIs, time (usuário Jira, nome, e-mail) e mapeamento status → fase.
+- **Base Jira** — gerada pela sincronização (não editar).
+- **Fases** — segmentos de cada fase por issue (gerada).
+- **Base Manual** — complementos da TL (IA, CR, Automação, Resultado CR) e o histórico importado da aba antiga *Entrega por dev*.
+- **Log** — registro das execuções.
+
+## Busca no Jira
+
+A JQL é montada a partir da configuração, no mesmo formato usado pelo time:
+
+```
+project in ("Jornada Transmissão de Dctos Eletrônicos - TSS - OPEX")
+AND ((issuetype not in subTaskIssueTypes() OR issuetype = "Associado (Sub-tarefa)") AND "Story Points" >= 0)
+AND (resolved >= startOfMonth(-2) OR resolution = EMPTY)
+AND "Desenvolvedor" in (<usuários do bloco Time>)
+```
+
+Os campos *Desenvolvedor*, *Story Points* e *Data acordo* são localizados pelo nome. Se o nome for diferente no Jira, use **📊 Dash TSS → 🧾 Listar campos do Jira** e ajuste na configuração. Sem campo de data acordo, usa a *Data limite* (duedate).
+
+## Instalação (uma vez)
+
+1. Na planilha: **Extensões → Apps Script**, copie o **ID do script** (Configurações do projeto).
+2. No GitHub (repositório deste código), em *Settings → Secrets and variables → Actions*, crie:
+   - `SCRIPT_ID` — ID do script.
+   - `CLASPRC_JSON` — conteúdo do `~/.clasprc.json` (o mesmo dos outros projetos).
+   - `DEPLOYMENT_ID` *(opcional)* — ID da implantação do app da web, para manter a mesma URL a cada deploy.
+3. Faça push na `main` → o Actions publica o código.
+4. Recarregue a planilha → menu **📊 Dash TSS**:
+   1. ⚙️ Criar/atualizar configuração (preencha e-mail da TL e e-mails do time)
+   2. 🔑 Definir token do Jira (Personal Access Token)
+   3. 📥 Importar aba "Entrega por dev" (opcional, traz o histórico manual)
+   4. 🔄 Sincronizar Jira agora
+   5. ⏱️ Instalar gatilhos automáticos
+5. **Implantar → Nova implantação → App da web** (executar como você, acesso ao domínio) e compartilhe a URL com a TL.
+
+## Rotinas automáticas
+
+- `rotinaDiaria` (dias úteis, na hora configurada): sincroniza, envia lembretes de data acordo e, às segundas, o resumo dos parados.
+- `sincronizarAgendado` (a cada 2h, dias úteis 7h–20h): mantém o painel atualizado.
