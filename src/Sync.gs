@@ -13,18 +13,22 @@ function sincronizarJira() {
   if (!lock.tryLock(10000)) throw new Error('Já existe uma sincronização em andamento.');
   try {
     var t0 = Date.now();
+    var shCfg = ss_().getSheetByName(ABA.CONFIG);
+    if (shCfg) migrarParametros_(shCfg);
     var cfg = getConfig();
     var mapa = getMapaCampos_();
     var ids = {
       dev: resolverCampo_(cfg.campoDev, mapa),
       pontos: resolverCampo_(cfg.campoPontos, mapa),
-      acordo: resolverCampo_(cfg.campoAcordo, mapa) || 'duedate'
+      acordo: resolverPrimeiro_([cfg.campoAcordo, 'customfield_11039', 'Data Acordo Entrega', 'Data acordo'], mapa),
+      primeiraAcordo: resolverPrimeiro_([cfg.campoPrimeiraAcordo, 'Primeira Data Acordo'], mapa)
     };
+    if (!ids.acordo) { ids.acordo = 'duedate'; log_('Aviso', 'Campo "' + cfg.campoAcordo + '" não encontrado; usando Data limite (duedate).'); }
     if (!ids.dev) log_('Aviso', 'Campo "' + cfg.campoDev + '" não encontrado; usando Responsável (assignee).');
-    if (!resolverCampo_(cfg.campoAcordo, mapa)) log_('Aviso', 'Campo "' + cfg.campoAcordo + '" não encontrado; usando Data limite (duedate).');
 
     var res = buscarIssues_(cfg, ids);
-    var nomeAcordo = String(cfg.campoAcordo || 'duedate').toLowerCase();
+    var nomeAcordo = String(mapa['__nome__' + ids.acordo] || ids.acordo).toLowerCase();
+    log_('Sync', 'Data acordo = ' + ids.acordo + ' (' + nomeAcordo + '); Primeira data acordo = ' + (ids.primeiraAcordo || 'não encontrado'));
     var nomes = {};
     cfg.time.forEach(function (t) { nomes[t.usuario.toLowerCase()] = t.nome; });
 
@@ -132,6 +136,11 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
   }
   if (!inicio && segmentos.length > 1) inicio = segmentos[1].inicio;
   if (!inicio) inicio = criado;
+
+  // "Primeira Data Acordo" do Jira tem prioridade como data original
+  var primeira = ids.primeiraAcordo ? soData_(parseJiraDate_(valorCampo_(f[ids.primeiraAcordo]))) : null;
+  if (primeira) acordoOriginal = primeira;
+  if (acordo && acordoOriginal && acordo.getTime() !== acordoOriginal.getTime() && qtdReprog === 0) qtdReprog = 1;
 
   var hoje = hoje_();
   var atrasou = !!acordo && (conclusao ? soData_(conclusao) > acordo : hoje > acordo);

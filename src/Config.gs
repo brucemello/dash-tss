@@ -31,7 +31,8 @@ var PARAMS_PADRAO = [
   ['Meses de histórico', 3],
   ['Campo Desenvolvedor', 'Desenvolvedor'],
   ['Campo Story Points', 'Story Points'],
-  ['Campo Data acordo', 'Data acordo'],
+  ['Campo Data acordo', 'customfield_11039'],
+  ['Campo Primeira Data acordo', 'Primeira Data Acordo'],
   ['Filtrar só devs do Time', 'SIM'],
   ['Fase que marca início', 'Desenvolvimento'],
   ['E-mail da TL', ''],
@@ -139,6 +140,7 @@ function criarConfiguracao() {
   if (faltam.length) {
     sh.getRange(HEADER_ROW + 1 + cfg.length, 1, faltam.length, 2).setValues(faltam);
   }
+  migrarParametros_(sh);
 
   // Validações SIM/NÃO
   var regraSN = SpreadsheetApp.newDataValidation().requireValueInList(['SIM', 'NÃO'], true).build();
@@ -153,6 +155,16 @@ function criarConfiguracao() {
   sh.setFrozenRows(HEADER_ROW);
   pintarCoresLabels_(sh);
   return sh;
+}
+
+/** Corrige valores padrão antigos que não batem com o Jira. */
+function migrarParametros_(sh) {
+  var linhas = lerBloco_(sh, BLOCOS.PARAMS);
+  linhas.forEach(function (r, i) {
+    if (String(r[0]).trim() === 'Campo Data acordo' && String(r[1]).trim().toLowerCase() === 'data acordo') {
+      sh.getRange(HEADER_ROW + 1 + i, 2).setValue('customfield_11039');
+    }
+  });
 }
 
 function pintarCoresLabels_(sh) {
@@ -229,6 +241,7 @@ function getConfig() {
     campoDev: String(p['Campo Desenvolvedor'] || 'Desenvolvedor').trim(),
     campoPontos: String(p['Campo Story Points'] || 'Story Points').trim(),
     campoAcordo: String(p['Campo Data acordo'] || '').trim(),
+    campoPrimeiraAcordo: String(p['Campo Primeira Data acordo'] || '').trim(),
     filtrarTime: sim_(p['Filtrar só devs do Time']),
     faseInicio: String(p['Fase que marca início'] || 'Desenvolvimento').trim(),
     emailTL: String(p['E-mail da TL'] || '').trim(),

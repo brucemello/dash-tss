@@ -65,6 +65,7 @@ function getMapaCampos_() {
   lista.forEach(function (f) {
     mapa[String(f.name).toLowerCase()] = f.id;
     mapa[String(f.id).toLowerCase()] = f.id;
+    mapa['__nome__' + f.id] = f.name;
   });
   cache.put('jiraCampos', JSON.stringify(mapa), 21600);
   return mapa;
@@ -75,6 +76,15 @@ function resolverCampo_(nome, mapa) {
   var k = String(nome).trim().toLowerCase();
   if (k === 'duedate' || k === 'data limite' || k === 'due date') return 'duedate';
   return mapa[k] || null;
+}
+
+/** Tenta vários nomes/IDs e devolve o primeiro campo que existir. */
+function resolverPrimeiro_(candidatos, mapa) {
+  for (var i = 0; i < candidatos.length; i++) {
+    var id = resolverCampo_(candidatos[i], mapa);
+    if (id) return id;
+  }
+  return null;
 }
 
 /** Monta a JQL a partir da configuração (mesma lógica da consulta usada pelo time). */
@@ -95,7 +105,7 @@ function buscarIssues_(cfg, ids) {
   var jql = montarJql_(cfg);
   var campos = ['summary', 'status', 'issuetype', 'project', 'labels', 'created', 'updated',
                 'resolutiondate', 'assignee', 'duedate', 'priority'];
-  [ids.dev, ids.pontos, ids.acordo].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
+  [ids.dev, ids.pontos, ids.acordo, ids.primeiraAcordo].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
 
   var todas = [], startAt = 0, total = 1, inicio = Date.now();
   while (startAt < total) {
