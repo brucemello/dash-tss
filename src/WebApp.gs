@@ -48,8 +48,18 @@ function getConfigPainel() {
       return { labels: String(r[0]), nome: String(r[1]), cor: String(r[2]), ativo: sim_(r[3]) || String(r[3]).trim() === '' };
     }),
     destinatarios: getConfig().destinatarios,
+    teamIdsTempo: getConfig().teamIdsTempo,
+    time: lerBloco_(sh, BLOCOS.TIME).map(function (r) { return { usuario: String(r[0]), nome: String(r[1]), email: String(r[2]), ativo: sim_(r[3]) || String(r[3]).trim() === '' }; }),
     prontidao: verificarProntidao()
   };
+}
+
+/** Painel: salva o Team ID e já busca o time no Tempo. */
+function buscarTimeTempoPainel(ids) {
+  if (ids !== undefined && ids !== null) salvarTeamIdTempo(ids);
+  var r = sincronizarTimeTempo();
+  try { gerarSnapshotAtual(); } catch (e) {}
+  return r;
 }
 
 /** Envia um e-mail de teste do tipo escolhido para um destinatário. */
@@ -67,6 +77,7 @@ function verificarProntidao() {
   var add = function (ok, item, dica) { itens.push({ ok: !!ok, item: item, dica: dica }); };
 
   add(props.getProperty('JIRA_TOKEN'), 'Token do Jira configurado', 'Menu 📊 Dash TSS → 🔑 Definir token do Jira');
+  add(cfg.teamIdsTempo, 'Time vinculado ao Tempo' + (cfg.teamIdsTempo ? ' (Team ID ' + cfg.teamIdsTempo + ')' : ''), 'Informe o Team ID em 👥 Time pelo Tempo e clique em Buscar time');
   var ult = props.getProperty('ULTIMA_SYNC');
   var horas = ult ? (Date.now() - new Date(ult).getTime()) / 3600000 : null;
   add(ult && horas < 26, 'Dados do Jira sincronizados' + (ult ? ' (há ' + (horas < 1 ? Math.round(horas * 60) + ' min' : Math.round(horas) + 'h') + ')' : ''), 'Clique em ⚡ Atualizar agora');

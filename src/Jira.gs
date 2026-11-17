@@ -102,6 +102,22 @@ function montarJql_(cfg) {
 
 /** Busca todas as issues (paginado) com changelog. */
 function buscarIssues_(cfg, ids) {
+  // Usuário inexistente no Jira quebra a JQL ("O valor 'X' não existe para o campo..."):
+  // testa a JQL e retira esses usuários automaticamente, registrando no Log.
+  var removidos = [];
+  for (var tent = 0; tent < 15; tent++) {
+    try { jiraGet_('/rest/api/2/search', { jql: montarJql_(cfg), maxResults: 0 }); break; }
+    catch (e) {
+      var m = String(e.message).match(/(?:valor|value)\s+'([^']+)'\s+(?:não existe|does not exist)/i);
+      if (!m) throw e;
+      var ruim = m[1].toLowerCase();
+      var antes = cfg.time.length;
+      cfg.time = cfg.time.filter(function (t) { return t.usuario.toLowerCase() !== ruim; });
+      if (cfg.time.length === antes) throw e;
+      removidos.push(m[1]);
+    }
+  }
+  if (removidos.length) log_('Aviso', 'Usuários que não existem no Jira foram ignorados na busca: ' + removidos.join(', ') + '. Corrija no bloco 👥 Time ou use "Buscar time do Tempo".');
   var jql = montarJql_(cfg);
   var campos = ['summary', 'status', 'issuetype', 'project', 'labels', 'created', 'updated',
                 'resolutiondate', 'assignee', 'duedate', 'priority'];

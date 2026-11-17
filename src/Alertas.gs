@@ -26,6 +26,7 @@ function rotinaDiaria() {
   var cfg = getConfig();
   var dow = Number(Utilities.formatDate(new Date(), TZ, 'u'));
   if (dow > 5) return;
+  if (cfg.teamIdsTempo && cfg.timeTempoDiario) { try { sincronizarTimeTempo(); } catch (e) { log_('Erro', 'Time do Tempo: ' + e.message); } }
   try { sincronizarJira(); } catch (e) { log_('Erro', 'Sync na rotina diária: ' + e.message); }
   if (cfg.lembreteAtivo) { try { enviarLembretesDataAcordo(); } catch (e) { log_('Erro', 'Lembretes: ' + e.message); } }
   if (cfg.destD1.length) { try { enviarResumoDiarioD1(); } catch (e) { log_('Erro', 'Resumo diário D-1: ' + e.message); } }

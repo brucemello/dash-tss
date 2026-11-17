@@ -8,6 +8,7 @@ function onOpen() {
     .addSeparator()
     .addItem('⚙️ Criar/atualizar configuração', 'menuConfig_')
     .addItem('🔑 Definir token do Jira', 'definirTokenJira')
+    .addItem('👥 Buscar time e e-mails no Tempo', 'menuTempo_')
     .addItem('🧾 Listar campos do Jira', 'listarCamposJira')
     .addItem('📥 Importar aba "Entrega por dev"', 'menuImportar_')
     .addSeparator()
@@ -28,6 +29,7 @@ function executarComAviso_(fn, titulo) {
   }
 }
 
+function menuTempo_() { executarComAviso_(sincronizarTimeTempo, '👥 Time do Tempo'); }
 function menuD1_() { executarComAviso_(extracaoD1, '📅 Extração D-1'); }
 function menuSincronizar_() { executarComAviso_(sincronizarJira, '🔄 Sincronizar Jira'); }
 function menuConfig_() { executarComAviso_(function () { criarConfiguracao(); garantirBaseManual_(); return 'Configuração pronta. Revise os blocos e defina o token do Jira.'; }, '⚙️ Configuração'); }

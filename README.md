@@ -25,6 +25,10 @@ O painel não recalcula nada ao abrir: ele lê um **JSON pronto** (primeiro do c
 
 Os arquivos ficam na pasta **Dash TSS - JSON**, ao lado da planilha no Drive. Na visão D-1, prazos e "dias parado" são calculados como no fim daquele dia, e dá para escolher datas anteriores.
 
+## Time pelo Tempo
+
+Informe o **Team ID do Tempo** (ou procure o time pelo nome na aba Configuração do painel) e clique em **Buscar time e e-mails**. O Dash lê os membros ativos no Tempo Teams, busca usuário, nome e e-mail no Jira e atualiza o bloco 👥 Time. Roda sozinho todo dia útil antes dos alertas. Usuários que não existem no Jira são desativados e também ignorados na JQL, para não quebrar a busca.
+
 ## Destinatários (TL, gestores, PO)
 
 Bloco **📬 Destinatários** na aba ⚙️ Configuração (ou na aba Configuração do painel): nome, e-mail, papel e o que cada um recebe:
