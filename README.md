@@ -25,6 +25,16 @@ O painel não recalcula nada ao abrir: ele lê um **JSON pronto** (primeiro do c
 
 Os arquivos ficam na pasta **Dash TSS - JSON**, ao lado da planilha no Drive. Na visão D-1, prazos e "dias parado" são calculados como no fim daquele dia, e dá para escolher datas anteriores.
 
+## Destinatários (TL, gestores, PO)
+
+Bloco **📬 Destinatários** na aba ⚙️ Configuração (ou na aba Configuração do painel): nome, e-mail, papel e o que cada um recebe:
+
+- **Resumo de segunda**: itens parados, vencidos e que vencem na semana.
+- **Cópia nos lembretes**: cópia dos lembretes de data acordo enviados aos devs.
+- **Resumo diário (D-1)**: todo dia útil, o que foi entregue ontem e o que pede atenção hoje.
+
+O painel tem botões para enviar um e-mail de teste e um checklist **Pronto para a TL usar?**.
+
 ## Abas da planilha
 
 - **⚙️ Configuração** — parâmetros, projetos, labels → KPIs, time (usuário Jira, nome, e-mail) e mapeamento status → fase.

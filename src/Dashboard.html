@@ -133,6 +133,13 @@
   .info-visao.agora{background:#ECFDF5;color:#047857}
   .info-visao.velho{background:#FFFBEB;color:#B45309}
   .info-visao.d1{background:#EFF6FF;color:#1D4ED8}
+  .dest-row{display:grid;grid-template-columns:90px minmax(170px,1fr) 92px 56px 70px 34px 42px 30px;gap:6px;align-items:center;margin-bottom:6px}
+  .dest-row.cab{font-size:11px;color:var(--ink2);font-weight:700}
+  .dest-row input[type=text],.dest-row select{min-width:0;width:100%;padding:7px 8px}
+  .dest-row input[type=checkbox]{width:18px;height:18px;justify-self:center;accent-color:var(--roxo)}
+  .chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .chk .i{font-size:16px;line-height:1}
+  .chk small{display:block;color:var(--muted)}
   .esconde{display:none!important}
 </style>
 </head>
@@ -242,6 +249,20 @@
 
   <!-- CONFIG -->
   <section id="aba-config" class="esconde">
+    <div class="grid" style="margin-bottom:14px;grid-template-columns:1fr 1.25fr">
+      <div class="card"><h3>✅ Pronto para a TL usar?</h3><div id="cfgPronto"><div class="vazio">Verificando…</div></div></div>
+      <div class="card"><h3>📬 Destinatários — quem recebe o quê</h3>
+        <div class="dest-row cab"><span>Nome</span><span>E-mail</span><span>Papel</span><span title="Resumo de segunda">Segunda</span><span title="Cópia nos lembretes de data acordo">Lembretes</span><span title="Resumo diário do fechamento de ontem">D-1</span><span>Ativo</span><span></span></div>
+        <div id="cfgDest"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn ghost" onclick="addDest()">＋ Cadastrar destinatário</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost" onclick="testar('d1')">✉️ Testar resumo D-1</button>
+          <button class="btn ghost" onclick="testar('segunda')">✉️ Testar resumo de segunda</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">O teste vai para o primeiro destinatário ativo (salve antes de testar).</div>
+      </div>
+    </div>
     <div class="nota">💡 Aqui você define os <b>projetos</b> buscados no Jira e as <b>labels</b> que viram KPI. Cada label nova ganha um card automático em “Indicadores por label”. Time, e-mails, prazos dos alertas e mapeamento de status → fase ficam na aba <b>⚙️ Configuração</b> da planilha.</div>
     <div class="grid duas">
       <div class="card">
@@ -777,16 +798,41 @@ function sincronizar(){
 function abrirPlanilha(){ if(D && D.planilhaUrl) window.open(D.planilhaUrl,'_blank'); }
 
 function carregarConfig(){
-  chamar('getConfigPainel', [], function(r){ CFG = r || {projetos:[],kpis:[]}; desenharConfig(); });
+  chamar('getConfigPainel', [], function(r){ CFG = r || {projetos:[],kpis:[],destinatarios:[]}; CFG.destinatarios = CFG.destinatarios || []; desenharConfig(); desenharPronto(CFG.prontidao); });
 }
 function desenharConfig(){
   document.getElementById('cfgKpis').innerHTML = CFG.kpis.map(function(k,i){
     var cor = /^#[0-9a-f]{6}$/i.test(k.cor)?k.cor:COR_SERIE[i%8];
     return '<div class="cfg-row"><input type="text" value="'+esc(k.labels)+'" onchange="CFG.kpis['+i+'].labels=this.value" placeholder="ex.: IA, uso-ia"><input type="text" value="'+esc(k.nome)+'" onchange="CFG.kpis['+i+'].nome=this.value" placeholder="Nome do KPI"><input type="color" value="'+cor+'" onchange="CFG.kpis['+i+'].cor=this.value"><input type="checkbox" '+(k.ativo?'checked':'')+' onchange="CFG.kpis['+i+'].ativo=this.checked"><button class="del" onclick="CFG.kpis.splice('+i+',1);desenharConfig()">✕</button></div>';
   }).join('');
+  desenharDest();
   document.getElementById('cfgProj').innerHTML = CFG.projetos.map(function(p,i){
     return '<div class="cfg-row p"><input type="text" value="'+esc(p.nome)+'" onchange="CFG.projetos['+i+'].nome=this.value"><input type="checkbox" '+(p.ativo?'checked':'')+' onchange="CFG.projetos['+i+'].ativo=this.checked"><button class="del" onclick="CFG.projetos.splice('+i+',1);desenharConfig()">✕</button></div>';
   }).join('');
+}
+function desenharDest(){
+  var papeis = ['TL','Gestor','PO','Agile Master','Outro'];
+  document.getElementById('cfgDest').innerHTML = CFG.destinatarios.map(function(x,i){
+    var ck = function(c){ return '<input type="checkbox" '+(x[c]?'checked':'')+' onchange="CFG.destinatarios['+i+'].'+c+'=this.checked">'; };
+    return '<div class="dest-row"><input type="text" value="'+esc(x.nome)+'" placeholder="Nome" onchange="CFG.destinatarios['+i+'].nome=this.value"><input type="text" value="'+esc(x.email)+'" placeholder="email@totvs.com.br" onchange="CFG.destinatarios['+i+'].email=this.value.trim()">'+
+      '<select onchange="CFG.destinatarios['+i+'].papel=this.value">'+papeis.map(function(p){ return '<option'+(p===x.papel?' selected':'')+'>'+p+'</option>'; }).join('')+'</select>'+
+      ck('resumo')+ck('copia')+ck('d1')+ck('ativo')+'<button class="del" onclick="CFG.destinatarios.splice('+i+',1);desenharDest()">✕</button></div>';
+  }).join('') || '<div class="vazio" style="padding:12px">Nenhum destinatário. Cadastre a TL para ela receber os resumos.</div>';
+}
+function addDest(){ CFG.destinatarios.push({nome:'',email:'',papel:CFG.destinatarios.length?'Gestor':'TL',resumo:true,copia:true,d1:true,ativo:true}); desenharDest(); }
+function desenharPronto(p){
+  var el = document.getElementById('cfgPronto');
+  if(!p){ el.innerHTML = '<div class="vazio">Sem informação.</div>'; return; }
+  var ok = p.itens.filter(function(i){return i.ok;}).length;
+  el.innerHTML = '<div style="margin-bottom:6px"><span class="pill '+(p.pronto?'ok':'warn')+'">'+(p.pronto?'🎉 Tudo pronto':'Faltam '+(p.itens.length-ok)+' passo(s)')+'</span> <span style="font-size:12px;color:var(--muted)">'+ok+' de '+p.itens.length+' ok</span></div>'+
+    p.itens.map(function(i){ return '<div class="chk"><span class="i">'+(i.ok?'✅':'⬜')+'</span><div>'+esc(i.item)+(i.ok?'':'<small>👉 '+esc(i.dica)+'</small>')+'</div></div>'; }).join('')+
+    (p.url ? '<div style="margin-top:10px;font-size:12px">🔗 Link do painel para a TL: <a href="'+esc(p.url)+'" target="_blank">'+esc(p.url)+'</a> <button class="btn ghost" style="padding:4px 10px" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+esc(p.url)+'\');toast(\'Link copiado\')">Copiar</button></div>' : '');
+}
+function testar(tipo){
+  var dest = (CFG.destinatarios||[]).filter(function(x){ return x.ativo!==false && x.email; })[0];
+  if(!dest){ toast('Cadastre e salve um destinatário primeiro'); return; }
+  carregando(true,'Enviando e-mail de teste para '+dest.email+'…');
+  chamar('enviarTeste', [dest.email, tipo], function(r){ carregando(false); toast('✉️ '+(r||'Enviado')); });
 }
 function addKpi(){ CFG.kpis.push({labels:'',nome:'',cor:COR_SERIE[CFG.kpis.length%8],ativo:true}); desenharConfig(); }
 function addProj(){ CFG.projetos.push({nome:'',ativo:true}); desenharConfig(); }
@@ -794,6 +840,7 @@ function salvarConfig(sinc){
   carregando(true,'Salvando configuração…');
   chamar('salvarConfigPainel', [CFG], function(){
     toast('💾 Configuração salva');
+    chamar('getConfigPainel', [], function(r){ if(r){ desenharPronto(r.prontidao); } });
     if(sinc) sincronizar(); else carregar('agora');
   });
 }

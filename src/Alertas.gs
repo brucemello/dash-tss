@@ -28,6 +28,7 @@ function rotinaDiaria() {
   if (dow > 5) return;
   try { sincronizarJira(); } catch (e) { log_('Erro', 'Sync na rotina diária: ' + e.message); }
   if (cfg.lembreteAtivo) { try { enviarLembretesDataAcordo(); } catch (e) { log_('Erro', 'Lembretes: ' + e.message); } }
+  if (cfg.destD1.length) { try { enviarResumoDiarioD1(); } catch (e) { log_('Erro', 'Resumo diário D-1: ' + e.message); } }
   if (dow === 1 && cfg.resumoSegundaAtivo) { try { enviarResumoSegunda(); } catch (e) { log_('Erro', 'Resumo segunda: ' + e.message); } }
 }
 
@@ -55,13 +56,14 @@ function enviarLembretesDataAcordo() {
       'Olá, ' + itens[0].dev + '! Estas issues estão chegando (ou já passaram) da data acordo:',
       tabelaIssuesHtml_(itens, cfg, 'acordo'), cfg);
     var opt = { htmlBody: html, name: 'Dash TSS' };
-    if (cfg.copiarTL && cfg.emailTL) opt.cc = cfg.emailTL;
+    if (cfg.copiarTL && cfg.destCopia.length) opt.cc = cfg.destCopia.join(',');
     MailApp.sendEmail(email, assunto, '', opt);
     enviados++;
   });
 
-  if (semEmail.length && cfg.emailTL) {
-    MailApp.sendEmail(cfg.emailTL, '⏰ Data acordo — ' + semEmail.length + ' issue(s) de devs sem e-mail cadastrado', '', {
+  var avisar = cfg.destCopia.length ? cfg.destCopia : cfg.destResumo;
+  if (semEmail.length && avisar.length) {
+    MailApp.sendEmail(avisar.join(','), '⏰ Data acordo — ' + semEmail.length + ' issue(s) de devs sem e-mail cadastrado', '', {
       name: 'Dash TSS',
       htmlBody: emailBase_('⏰ Data acordo — devs sem e-mail',
         'Cadastre o e-mail desses devs no bloco 👥 Time da configuração para eles receberem direto.',
@@ -78,10 +80,11 @@ function enviarLembretesDataAcordo() {
 }
 
 /** Resumo de segunda-feira para a TL: parados, vencidos, próximos 7 dias e entregas da semana anterior. */
-function enviarResumoSegunda() {
+function enviarResumoSegunda(paraTeste) {
   var d = montarDados_();
   var cfg = d.cfg;
-  if (!cfg.emailTL) throw new Error('Informe o "E-mail da TL" na aba ⚙️ Configuração.');
+  var para = paraTeste ? [paraTeste] : cfg.destResumo;
+  if (!para.length) throw new Error('Cadastre ao menos um destinatário com "Resumo de segunda = SIM" (bloco 📬 Destinatários).');
   var hoje = hoje_();
   var abertas = d.issues.filter(function (x) { return x.aberta; });
   var parados = abertas.filter(function (x) { return x.diasParado >= cfg.diasParado; })
@@ -107,14 +110,49 @@ function enviarResumoSegunda() {
     secaoEmail_('🔴 Data acordo vencida', vencidas, cfg, 'acordo') +
     secaoEmail_('📅 Vencem nos próximos 7 dias', proximas, cfg, 'acordo');
 
-  MailApp.sendEmail(cfg.emailTL, '📊 Resumo de segunda — Time TSS (' + fmtBR_(hoje) + ')', '', {
+  MailApp.sendEmail(para.join(','), (paraTeste ? '[TESTE] ' : '') + '📊 Resumo de segunda — Time TSS (' + fmtBR_(hoje) + ')', '', {
     name: 'Dash TSS', htmlBody: emailBase_('📊 Resumo de segunda — Time TSS', 'Visão rápida do que precisa de atenção nesta semana.', corpo, cfg)
   });
+  if (paraTeste) return 'Resumo de teste enviado para ' + paraTeste;
   enviarChat_(cfg, '*📊 Resumo de segunda — Time TSS*\n🧊 Parados: ' + parados.length + ' | 🔴 Vencidas: ' + vencidas.length +
     ' | 📅 Vencem em 7d: ' + proximas.length + ' | ✅ Entregues semana: ' + entregues.length + '\n' +
     parados.slice(0, 8).map(function (x) { return '• ' + x.k + ' — ' + x.dev + ' — parado há ' + x.diasParado + 'd (' + x.status + ')'; }).join('\n'));
-  log_('Resumo', 'Resumo de segunda enviado para ' + cfg.emailTL);
-  return 'Resumo enviado para ' + cfg.emailTL;
+  log_('Resumo', 'Resumo de segunda enviado para ' + para.join(', '));
+  return 'Resumo enviado para ' + para.join(', ');
+}
+
+/** Resumo diário do fechamento de ontem (D-1) para quem marcou "Resumo diário (D-1)". */
+function enviarResumoDiarioD1(paraTeste) {
+  var ontem = hoje_(); ontem.setDate(ontem.getDate() - 1);
+  if (ontem.getDay() === 0) ontem.setDate(ontem.getDate() - 2); // segunda olha a sexta
+  if (ontem.getDay() === 6) ontem.setDate(ontem.getDate() - 1);
+  var d = montarDados_();
+  var cfg = d.cfg;
+  var para = paraTeste ? [paraTeste] : cfg.destD1;
+  if (!para.length) throw new Error('Cadastre ao menos um destinatário com "Resumo diário (D-1) = SIM".');
+  var abertas = d.issues.filter(function (x) { return x.aberta; });
+  var entregues = d.issues.filter(function (x) { return x.conclusao && fmtISO_(x.conclusao) === fmtISO_(ontem); });
+  var vencemHoje = abertas.filter(function (x) { return x.diasParaAcordo !== null && x.diasParaAcordo >= 0 && x.diasParaAcordo <= cfg.diasLembrete; })
+    .sort(function (a, b) { return a.diasParaAcordo - b.diasParaAcordo; });
+  var vencidas = abertas.filter(function (x) { return x.diasParaAcordo !== null && x.diasParaAcordo < 0; });
+  var parados = abertas.filter(function (x) { return x.diasParado >= cfg.diasParado; }).sort(function (a, b) { return b.diasParado - a.diasParado; }).slice(0, 10);
+  var noPrazo = entregues.filter(function (x) { return !x.atrasou; }).length;
+  var cards = '<table role="presentation" width="100%" cellspacing="8"><tr>' +
+    cardEmail_('Entregues em ' + fmtBR_(ontem).substring(0, 5), entregues.length, '#10B981') +
+    cardEmail_('No prazo', entregues.length ? Math.round(noPrazo / entregues.length * 100) + '%' : '—', '#8B5CF6') +
+    cardEmail_('Vencem em até ' + cfg.diasLembrete + 'd', vencemHoje.length, '#F59E0B') +
+    cardEmail_('Vencidas', vencidas.length, '#EF4444') +
+    cardEmail_('Em andamento', abertas.length, '#3B82F6') + '</tr></table>';
+  var corpo = cards +
+    secaoEmail_('✅ Entregues no dia', entregues, cfg, 'acordo') +
+    secaoEmail_('⏰ Vencendo', vencemHoje, cfg, 'acordo') +
+    secaoEmail_('🔴 Vencidas', vencidas, cfg, 'acordo') +
+    secaoEmail_('🧊 Mais tempo parados', parados, cfg, 'parado');
+  MailApp.sendEmail(para.join(','), (paraTeste ? '[TESTE] ' : '') + '📅 Fechamento D-1 — Time TSS (' + fmtBR_(ontem) + ')', '', {
+    name: 'Dash TSS', htmlBody: emailBase_('📅 Fechamento D-1 — ' + fmtBR_(ontem), 'O que foi entregue ontem e o que pede atenção hoje.', corpo, cfg)
+  });
+  log_('Resumo D-1', 'Enviado para ' + para.join(', '));
+  return 'Resumo D-1 enviado para ' + para.join(', ');
 }
 
 function textoPrazo_(n) {
