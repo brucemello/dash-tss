@@ -16,27 +16,23 @@ function abrirPainelNaPlanilha() {
   SpreadsheetApp.getUi().showModalDialog(html, '📊 Dash TSS');
 }
 
-/** Dados completos para o painel. */
-function getDashboardData() {
-  var d = montarDados_();
-  var cfg = d.cfg;
-  var ordemFases = Object.keys(cfg.ordemFase)
-    .sort(function (a, b) { return cfg.ordemFase[a] - cfg.ordemFase[b]; });
-  return {
-    geradoEm: fmtISOHora_(new Date()),
-    ultimaSync: PropertiesService.getScriptProperties().getProperty('ULTIMA_SYNC') || '',
-    planilhaUrl: ss_().getUrl(),
-    params: {
-      diasLembrete: cfg.diasLembrete, diasParado: cfg.diasParado, jiraUrl: cfg.jiraUrl,
-      emailTL: cfg.emailTL, faseInicio: cfg.faseInicio, ordemCompromisso: 3
-    },
-    kpis: cfg.kpis.map(function (k) { return { id: k.id, nome: k.nome, labels: k.labels.join(', '), cor: k.cor }; }),
-    projetos: cfg.projetos,
-    time: cfg.time.map(function (t) { return { usuario: t.usuario, nome: t.nome }; }),
-    ordemFases: ordemFases,
-    issues: d.issues.map(serializarIssue_),
-    fases: lerFases_(cfg)
-  };
+/**
+ * Dados para o painel, lidos do JSON pronto (rápido).
+ * modo: "agora" (padrão) | "d1" | "d1:AAAA-MM-DD". Retorna texto JSON.
+ */
+function getDashboardData(modo) {
+  return lerSnapshot(modo || 'agora');
+}
+
+/** Datas de D-1 disponíveis para o seletor do painel. */
+function getDatasD1() {
+  return listarDatasD1();
+}
+
+/** Consulta o Jira agora e devolve o JSON "Agora" atualizado. */
+function atualizarAgora() {
+  sincronizarJira();
+  return lerSnapshot('agora');
 }
 
 function sincronizarDoPainel() {

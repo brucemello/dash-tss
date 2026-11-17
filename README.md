@@ -14,6 +14,17 @@ Apps Script (planilha Google + app da web) para a TL do time **TSS** acompanhar 
 | **IA / Code Review / Automação** | Viram KPI pelas **labels** do Jira (configurável) e/ou marcação manual na aba *Base Manual*. Mostra o % de uso no time e por dev. |
 | **Label nova = KPI novo** | Ao adicionar uma label na configuração (planilha ou painel), aparece um card novo com % de uso e auditoria. |
 
+## Visões: Agora × D-1 (JSON)
+
+O painel não recalcula nada ao abrir: ele lê um **JSON pronto** (primeiro do cache do script, depois do arquivo no Drive).
+
+| Visão | Arquivo | Quando é gerado |
+|---|---|---|
+| ⚡ **Agora** | `dash-tss-atual.json` | A cada sincronização: botão *Atualizar agora*, a cada 2h em dias úteis e na rotina das 8h |
+| 📅 **D-1** | `dash-tss-d1.json` + `dash-tss-d1-AAAA-MM-DD.json` | Todo dia à 1h: sincroniza com o Jira e grava a foto do fechamento do dia anterior (histórico de 35 dias) |
+
+Os arquivos ficam na pasta **Dash TSS - JSON**, ao lado da planilha no Drive. Na visão D-1, prazos e "dias parado" são calculados como no fim daquele dia, e dá para escolher datas anteriores.
+
 ## Abas da planilha
 
 - **⚙️ Configuração** — parâmetros, projetos, labels → KPIs, time (usuário Jira, nome, e-mail) e mapeamento status → fase.
@@ -53,5 +64,6 @@ Os campos *Desenvolvedor*, *Story Points* e *Data acordo* são localizados pelo 
 
 ## Rotinas automáticas
 
+- `extracaoD1` (todo dia à 1h): grava a extração D-1 em JSON.
 - `rotinaDiaria` (dias úteis, na hora configurada): sincroniza, envia lembretes de data acordo e, às segundas, o resumo dos parados.
-- `sincronizarAgendado` (a cada 2h, dias úteis 7h–20h): mantém o painel atualizado.
+- `sincronizarAgendado` (a cada 2h, dias úteis 7h–20h): regrava o JSON da visão Agora.

@@ -3,9 +3,10 @@
  * (usado pelo painel e pelos alertas).
  */
 
-function montarDados_(cfg) {
+function montarDados_(cfg, dataRef) {
   cfg = cfg || getConfig();
-  var hoje = hoje_();
+  // dataRef: usado na extração D-1 para calcular prazos como no fechamento daquele dia
+  var hoje = dataRef ? soData_(dataRef) : hoje_();
   var nomes = {}, emails = {};
   cfg.time.forEach(function (t) { nomes[t.usuario.toLowerCase()] = t.nome; emails[t.usuario.toLowerCase()] = t.email; });
 

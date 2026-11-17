@@ -63,6 +63,7 @@ function sincronizarJira() {
 
     garantirBaseManual_(cfg);
     PropertiesService.getScriptProperties().setProperty('ULTIMA_SYNC', new Date().toISOString());
+    try { gerarSnapshotAtual(); } catch (e) { log_('Erro', 'JSON "Agora" não gerado: ' + e.message); }
     var msg = linhasBase.length + ' issues sincronizadas em ' + Math.round((Date.now() - t0) / 1000) + 's';
     log_('Sync', msg + ' | JQL: ' + res.jql);
     return { ok: true, total: linhasBase.length, mensagem: msg };

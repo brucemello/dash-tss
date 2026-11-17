@@ -4,6 +4,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('📊 Dash TSS')
     .addItem('📊 Abrir painel', 'abrirPainelNaPlanilha')
     .addItem('🔄 Sincronizar Jira agora', 'menuSincronizar_')
+    .addItem('📅 Gerar extração D-1 agora', 'menuD1_')
     .addSeparator()
     .addItem('⚙️ Criar/atualizar configuração', 'menuConfig_')
     .addItem('🔑 Definir token do Jira', 'definirTokenJira')
@@ -27,6 +28,7 @@ function executarComAviso_(fn, titulo) {
   }
 }
 
+function menuD1_() { executarComAviso_(extracaoD1, '📅 Extração D-1'); }
 function menuSincronizar_() { executarComAviso_(sincronizarJira, '🔄 Sincronizar Jira'); }
 function menuConfig_() { executarComAviso_(function () { criarConfiguracao(); garantirBaseManual_(); return 'Configuração pronta. Revise os blocos e defina o token do Jira.'; }, '⚙️ Configuração'); }
 function menuImportar_() { executarComAviso_(importarEntregaPorDev, '📥 Importar histórico'); }

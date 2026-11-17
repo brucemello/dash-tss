@@ -312,6 +312,7 @@ function salvarConfigPainel(payload) {
     pintarCoresLabels_(sh);
     garantirBaseManual_();
   }
+  try { gerarSnapshotAtual(); } catch (e) { log_('Erro', 'JSON não regenerado: ' + e.message); }
   log_('Config', 'Configuração atualizada pelo painel por ' + (Session.getActiveUser().getEmail() || 'usuário'));
   return { ok: true };
 }

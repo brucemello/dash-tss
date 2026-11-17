@@ -5,12 +5,13 @@
 function instalarGatilhos() {
   var cfg = getConfig();
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (['rotinaDiaria', 'sincronizarAgendado'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (['rotinaDiaria', 'sincronizarAgendado', 'extracaoD1'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
+  ScriptApp.newTrigger('extracaoD1').timeBased().everyDays(1).atHour(1).inTimezone(TZ).create();
   ScriptApp.newTrigger('rotinaDiaria').timeBased().everyDays(1).atHour(cfg.horaAlertas).inTimezone(TZ).create();
   ScriptApp.newTrigger('sincronizarAgendado').timeBased().everyHours(2).create();
-  log_('Gatilhos', 'Instalados: rotina diária às ' + cfg.horaAlertas + 'h e sincronização a cada 2h');
-  return 'Gatilhos instalados: alertas diários às ' + cfg.horaAlertas + 'h (resumo às segundas) e sincronização a cada 2h.';
+  log_('Gatilhos', 'Instalados: extração D-1 à 1h, rotina diária às ' + cfg.horaAlertas + 'h e sincronização a cada 2h');
+  return 'Gatilhos instalados: extração D-1 todo dia à 1h, alertas às ' + cfg.horaAlertas + 'h (resumo às segundas) e atualização do "Agora" a cada 2h.';
 }
 
 function sincronizarAgendado() {

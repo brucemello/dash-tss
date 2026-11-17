@@ -126,6 +126,13 @@
   .mk-acordo:after{content:'🏁';position:absolute;top:-14px;left:-8px;font-size:11px}
   .mk-hoje{position:absolute;top:0;height:24px;width:0;border-left:2px dashed #1F1B2E;opacity:.5}
   .kpi .val.txt{font-size:22px;line-height:1.2;margin-top:10px}
+  .vis{display:inline-flex;background:#F3F0FF;border-radius:12px;padding:3px;gap:3px}
+  .vis button{border:0;background:transparent;padding:7px 12px;border-radius:9px;font-weight:700;font-size:13px;color:var(--ink2);cursor:pointer}
+  .vis button.on{background:var(--roxo);color:#fff;box-shadow:0 2px 8px rgba(124,58,237,.35)}
+  .info-visao{font-size:12px;border-radius:10px;padding:7px 10px;font-weight:600;align-self:flex-end}
+  .info-visao.agora{background:#ECFDF5;color:#047857}
+  .info-visao.velho{background:#FFFBEB;color:#B45309}
+  .info-visao.d1{background:#EFF6FF;color:#1D4ED8}
   .esconde{display:none!important}
 </style>
 </head>
@@ -136,7 +143,7 @@
   <h1>📊 Dash TSS — Entregas do Time</h1>
   <div class="sub" id="subInfo">—</div>
   <div class="acoes">
-    <button class="btn" onclick="sincronizar()">🔄 Sincronizar Jira</button>
+    <button class="btn" onclick="sincronizar()" title="Consulta o Jira agora e atualiza a visão Agora">⚡ Atualizar agora</button>
     <button class="btn" onclick="trocarAba('config')">⚙️ Configurar</button>
     <button class="btn" id="btnPlanilha" onclick="abrirPlanilha()">📄 Planilha</button>
   </div>
@@ -144,6 +151,11 @@
 
 <div class="wrap">
   <div class="barra">
+    <label>Visão
+      <span class="vis"><button id="vAgora" class="on" onclick="mudarVisao('agora')" title="Estado atual (última sincronização)">⚡ Agora</button><button id="vD1" onclick="mudarVisao('d1')" title="Fechamento do dia anterior, extraído de madrugada">📅 D-1</button></span>
+    </label>
+    <label id="lDataD1" class="esconde">Fechamento de <select id="fDataD1" onchange="carregar('d1:'+this.value)"></select></label>
+    <span id="infoVisao" class="info-visao"></span>
     <label>Período de entrega
       <select id="fPeriodo" onchange="mudouPeriodo()">
         <option value="mes">Mês atual</option>
@@ -291,17 +303,50 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){retur
 function d(s){ if(!s) return null; var p=String(s).substring(0,10).split('-'); return new Date(+p[0],+p[1]-1,+p[2]); }
 function dh(s){ return s? new Date(s) : null; }
 function br(s){ var x=d(s); return x? ('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2)+'/'+x.getFullYear() : '—'; }
-function hoje(){ var x=new Date(); return new Date(x.getFullYear(),x.getMonth(),x.getDate()); }
+var VISAO = 'agora';
+/** Momento de referência: agora (visão Agora) ou fim do dia da extração (visão D-1). */
+function agoraRef(){ if(D && D.modo==='d1' && D.dataReferencia){ var r = d(D.dataReferencia); r.setHours(23,59,59); return r.getTime(); } return Date.now(); }
+function hoje(){ var x=new Date(agoraRef()); return new Date(x.getFullYear(),x.getMonth(),x.getDate()); }
 function pct(a,b){ return b? Math.round(a/b*100) : 0; }
 function iniciais(n){ return String(n||'?').split(/[\s.]+/).filter(Boolean).slice(0,2).map(function(p){return p[0].toUpperCase();}).join(''); }
 
-function carregar(){
-  carregando(true,'Carregando o painel…');
-  chamar('getDashboardData', [], function(r){
-    D = r; carregando(false);
-    if(!D){ toast('Sem dados'); return; }
-    prepararFiltros(); render();
-  });
+function carregar(modo){
+  modo = modo || VISAO;
+  carregando(true, modo==='agora' ? 'Carregando a visão Agora…' : 'Carregando a extração D-1…');
+  chamar('getDashboardData', [modo], function(r){ receber(r); });
+}
+function receber(r){
+  carregando(false);
+  D = typeof r === 'string' ? JSON.parse(r) : r;
+  if(!D){ toast('Sem dados'); return; }
+  VISAO = D.modo === 'd1' ? 'd1' : 'agora';
+  document.getElementById('vAgora').classList.toggle('on', VISAO==='agora');
+  document.getElementById('vD1').classList.toggle('on', VISAO==='d1');
+  document.getElementById('lDataD1').classList.toggle('esconde', VISAO!=='d1');
+  infoVisao();
+  prepararFiltros(); render();
+}
+function mudarVisao(v){
+  if(v==='d1'){
+    chamar('getDatasD1', [], function(datas){
+      var sel = document.getElementById('fDataD1');
+      sel.innerHTML = (datas||[]).map(function(x){ return '<option value="'+x+'">'+br(x)+'</option>'; }).join('');
+    });
+    carregar('d1');
+  } else carregar('agora');
+}
+function infoVisao(){
+  var el = document.getElementById('infoVisao');
+  if(D.modo==='d1'){
+    el.className = 'info-visao d1';
+    el.textContent = '📅 Fechamento de '+br(D.dataReferencia)+' · extraído '+new Date(D.geradoEm).toLocaleString('pt-BR');
+    var sel = document.getElementById('fDataD1');
+    if(sel.options.length && D.dataReferencia) sel.value = D.dataReferencia;
+  } else {
+    var min = Math.round((Date.now() - new Date(D.geradoEm).getTime())/60000);
+    el.className = 'info-visao ' + (min > 150 ? 'velho' : 'agora');
+    el.textContent = '⚡ Atualizado '+(min<1?'agora mesmo':min<60?'há '+min+' min':'há '+Math.round(min/60)+'h')+' · '+new Date(D.geradoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }
 }
 
 function prepararFiltros(){
@@ -522,7 +567,7 @@ function fluxo(x){
   if(x._fl) return x._fl;
   var ordC = D.params.ordemCompromisso || 3;
   var segs = segsDe(x.k).filter(function(s){ return s.ordem >= ordC && s.tipo !== 'Fim' && s.ini; });
-  var agora = Date.now();
+  var agora = agoraRef();
   var r = {segs:[], ini:null, fim:null, ciclo:null, trab:0, esp:0, etapas:{}, atual:null};
   if(segs.length){
     r.ini = dh(segs[0].ini).getTime();
@@ -639,9 +684,9 @@ function desenharCiclo(){
     mostrar.map(function(x){
       var f = fluxo(x), pos = function(t){ return Math.max(0, Math.min(100, (t - f.ini)/DIA/max*100)); };
       var segs = f.segs.map(function(s){ var l = pos(s.a), w = Math.max(.35, pos(s.b)-l), cor = COR_FASE[s.fase]||'#A78BFA';
-        return '<div class="seg'+(s.tipo==='Espera'?' listra':'')+'" style="--c:'+cor+';left:'+l+'%;width:'+w+'%;background:'+cor+'" title="'+esc(s.fase)+' — '+(s.tipo==='Espera'?'🧊 na fila':'🛠️ trabalhando')+' ('+esc(s.status)+')\n'+new Date(s.a).toLocaleString('pt-BR')+' → '+(x.conclusao||s.b<Date.now()-60000?new Date(s.b).toLocaleString('pt-BR'):'agora')+'\n'+f1(s.dias)+' dia(s)"></div>'; }).join('');
+        return '<div class="seg'+(s.tipo==='Espera'?' listra':'')+'" style="--c:'+cor+';left:'+l+'%;width:'+w+'%;background:'+cor+'" title="'+esc(s.fase)+' — '+(s.tipo==='Espera'?'🧊 na fila':'🛠️ trabalhando')+' ('+esc(s.status)+')\n'+new Date(s.a).toLocaleString('pt-BR')+' → '+(x.conclusao||s.b<agoraRef()-60000?new Date(s.b).toLocaleString('pt-BR'):'agora')+'\n'+f1(s.dias)+' dia(s)"></div>'; }).join('');
       var mk = x.acordo ? '<div class="mk-acordo" style="left:'+pos(d(x.acordo).getTime()+DIA)+'%" title="Data acordo '+br(x.acordo)+(x.reprog?' (reprogramada '+x.reprog+'x, original '+br(x.acordoOrig)+')':'')+'"></div>' : '';
-      var hj = x.aberta ? '<div class="mk-hoje" style="left:'+pos(Date.now())+'%"></div>' : '';
+      var hj = x.aberta ? '<div class="mk-hoje" style="left:'+pos(agoraRef())+'%"></div>' : '';
       var tot = f.trab + f.esp, pT = pct(f.trab, tot);
       var alerta = CICLO.p85 && f.ciclo > CICLO.p85 ? ' style="color:var(--crit)"' : '';
       return '<div class="cic"><div class="nm"><a href="#" onclick="abrirIssue(\''+x.k+'\');return false"><b>'+esc(x.k)+'</b></a> · '+esc(x.dev)+'<br><small>'+esc(x.status)+'</small> '+situacao(x)+'</div>'+
@@ -727,7 +772,7 @@ function trocarAba(a){
 }
 function sincronizar(){
   carregando(true,'Sincronizando com o Jira… isso pode levar alguns minutos');
-  chamar('sincronizarDoPainel', [], function(r){ toast('✅ '+((r&&r.mensagem)||'Sincronizado')); carregar(); });
+  chamar('atualizarAgora', [], function(r){ toast('✅ Dados do Jira atualizados'); receber(r); });
 }
 function abrirPlanilha(){ if(D && D.planilhaUrl) window.open(D.planilhaUrl,'_blank'); }
 
@@ -749,11 +794,12 @@ function salvarConfig(sinc){
   carregando(true,'Salvando configuração…');
   chamar('salvarConfigPainel', [CFG], function(){
     toast('💾 Configuração salva');
-    if(sinc) sincronizar(); else carregar();
+    if(sinc) sincronizar(); else carregar('agora');
   });
 }
 
-window.addEventListener('load', carregar);
+window.addEventListener('load', function(){ carregar('agora'); });
+setInterval(function(){ if(D) infoVisao(); }, 60000);
 </script>
 </body>
 </html>
