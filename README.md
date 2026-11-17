@@ -14,6 +14,10 @@ Apps Script (planilha Google + app da web) para a TL do time **TSS** acompanhar 
 | **IA / Code Review / Automação** | Viram KPI pelas **labels** do Jira (configurável) e/ou marcação manual na aba *Base Manual*. Mostra o % de uso no time e por dev. |
 | **Label nova = KPI novo** | Ao adicionar uma label na configuração (planilha ou painel), aparece um card novo com % de uso e auditoria. |
 
+## Manual interativo
+
+O botão **❓ Manual** no topo do painel abre um tour guiado de 24 passos em 7 capítulos (Começo, Visão geral, Datas & Issues, Fases, Por desenvolvedor, Configuração, Rotinas). O tour troca de aba sozinho, destaca cada área e explica como usar na decisão. Abre automaticamente na primeira visita; navegue com ← → ou pelo índice.
+
 ## Visões: Agora × D-1 (JSON)
 
 O painel não recalcula nada ao abrir: ele lê um **JSON pronto** (primeiro do cache do script, depois do arquivo no Drive).

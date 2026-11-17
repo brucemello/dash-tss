@@ -140,6 +140,22 @@
   .chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
   .chk .i{font-size:16px;line-height:1}
   .chk small{display:block;color:var(--muted)}
+  #tour{position:fixed;inset:0;z-index:80;display:none}
+  #tour.on{display:block}
+  #tour.escuro{background:rgba(30,16,60,.55)}
+  #tourLuz{position:fixed;border-radius:16px;box-shadow:0 0 0 9999px rgba(30,16,60,.55),0 0 0 3px #F59E0B,0 0 24px 6px rgba(245,158,11,.55);transition:all .35s ease;pointer-events:none}
+  #tourCaixa{position:fixed;width:min(440px,calc(100vw - 24px));background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(30,16,60,.4);padding:16px 18px 14px;transition:top .3s ease,left .3s ease}
+  #tourCaixa.centro{top:50%!important;left:50%!important;transform:translate(-50%,-50%)}
+  #tourCaixa h3{font-size:17px;margin:4px 0 8px}
+  .tbar{height:5px;background:#F0EDFA;border-radius:9px;overflow:hidden;margin-bottom:10px}
+  .tbar i{display:block;height:100%;background:linear-gradient(90deg,#7C3AED,#DB2777,#F59E0B);transition:width .3s}
+  .tcap{font-size:11px;font-weight:700;color:var(--rosa);text-transform:uppercase;letter-spacing:.5px}
+  .ttexto{font-size:13.5px;line-height:1.55;color:var(--ink)}
+  .tidx{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+  .tidx button{border:0;background:#F3F0FF;color:var(--ink2);border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+  .tidx button.on{background:var(--roxo);color:#fff}
+  .tnav{display:flex;gap:6px;align-items:center}
+  .tnav button:disabled{opacity:.4;cursor:default}
   .esconde{display:none!important}
 </style>
 </head>
@@ -150,7 +166,8 @@
   <h1>📊 Dash TSS — Entregas do Time</h1>
   <div class="sub" id="subInfo">—</div>
   <div class="acoes">
-    <button class="btn" onclick="sincronizar()" title="Consulta o Jira agora e atualiza a visão Agora">⚡ Atualizar agora</button>
+    <button class="btn" onclick="abrirManual(0)" title="Manual interativo passo a passo">❓ Manual</button>
+    <button class="btn" id="btnAtualizar" onclick="sincronizar()" title="Consulta o Jira agora e atualiza a visão Agora">⚡ Atualizar agora</button>
     <button class="btn" onclick="trocarAba('config')">⚙️ Configurar</button>
     <button class="btn" id="btnPlanilha" onclick="abrirPlanilha()">📄 Planilha</button>
   </div>
@@ -316,6 +333,22 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div id="tour">
+  <div id="tourLuz"></div>
+  <div id="tourCaixa">
+    <div class="tbar"><i id="tourBarra"></i></div>
+    <div class="tcap" id="tourCap"></div>
+    <h3 id="tourTitulo"></h3>
+    <div class="ttexto" id="tourTexto"></div>
+    <div class="tidx" id="tourIndice"></div>
+    <div class="tnav">
+      <button class="btn ghost" onclick="fecharManual()">Fechar</button>
+      <span style="flex:1"></span>
+      <button class="btn ghost" id="tourAnt" onclick="irPasso(tourI-1)">← Anterior</button>
+      <button class="btn solid" id="tourProx" onclick="proxPasso()">Próximo →</button>
+    </div>
+  </div>
+</div>
 
 <script>
 var D = null;            // dados do servidor
@@ -888,7 +921,106 @@ function salvarConfig(sinc){
   });
 }
 
+// ---------- manual interativo (tour guiado) ----------
+var TOUR = [
+  {cap:'Começo', titulo:'👋 Bem-vinda ao Dash TSS', texto:'Este manual mostra, passo a passo, cada parte do painel e <b>como usar na decisão do dia a dia</b>. Ele muda de aba sozinho e destaca a área explicada.<br><br>Use <b>→</b> / <b>←</b> no teclado ou os botões. Dá para pular para qualquer capítulo pelo índice.'},
+  {cap:'Começo', aba:'geral', alvo:'.vis', titulo:'⚡ Agora × 📅 D-1', texto:'<b>Agora</b> mostra o estado atual (atualizado a cada 2h, ou na hora pelo botão <i>Atualizar agora</i>).<br><b>D-1</b> é a foto do <b>fechamento de ontem</b>, extraída de madrugada — use para reuniões e comparações, porque não muda durante o dia. No D-1 dá para escolher datas anteriores (até 35 dias).'},
+  {cap:'Começo', aba:'geral', alvo:'#infoVisao', titulo:'🕒 De quando são os dados', texto:'Este selo diz de quando é a informação. Verde = atualizado; <b>amarelo</b> = mais de 2h30 sem atualizar (clique em <i>Atualizar agora</i>). No D-1 mostra o dia do fechamento e a hora da extração.'},
+  {cap:'Começo', aba:'geral', alvo:'#fPeriodo', alvoPai:'.barra', titulo:'🔎 Filtros', texto:'<b>Período de entrega</b> vale para tudo que foi <b>concluído</b> (entregas, % no prazo, uso de IA…). Itens em andamento aparecem sempre.<br><b>Desenvolvedor</b>, <b>Projeto</b> e <b>Buscar</b> filtram todas as abas ao mesmo tempo.'},
+  {cap:'Começo', aba:'geral', alvo:'#btnAtualizar', titulo:'⚡ Atualizar agora', texto:'Consulta o Jira na hora e recarrega a visão Agora. Leva de alguns segundos a poucos minutos, dependendo do volume. Não precisa usar sempre: o painel já se atualiza sozinho a cada 2h nos dias úteis.'},
+
+  {cap:'Visão geral', aba:'geral', alvo:'#kpisPrincipais', titulo:'📌 Indicadores principais', texto:'Entregas, story points, <b>% no prazo</b>, entregues com atraso, <b>reprogramadas</b> (data acordo alterada), tempo médio, em andamento, <b>parados</b>, vencendo e <b>vencidas</b>.<br><br>💡 <b>Decisão:</b> comece por <i>Data acordo vencida</i> e <i>Vencem em até 2d</i> — são as conversas do dia.'},
+  {cap:'Visão geral', aba:'geral', alvo:'#kpisPrincipais .kpi', titulo:'🔍 Todo card é auditável', texto:'Clique em qualquer card para abrir a <b>lista exata de issues</b> por trás do número: link para o Jira, datas, dias, situação e labels. Dá para filtrar e <b>exportar CSV</b>. Clicando numa issue você vê o histórico de fases dela.'},
+  {cap:'Visão geral', aba:'geral', alvo:'#kpisLabels', titulo:'🏷️ IA, Code Review e Automação', texto:'Cada label configurada vira um card com o <b>% das entregas</b> que usaram aquela prática. No card dá para alternar entre <b>com</b> e <b>sem</b> a label — ótimo para cobrar o uso ou reconhecer quem usa.<br>Adicionou uma label nova na configuração? Aparece um card novo na hora.'},
+  {cap:'Visão geral', aba:'geral', alvo:'#chDev', alvoCard:true, titulo:'📊 Entregas por dev e por semana', texto:'Verde = no prazo, vermelho = atrasou. Clique numa barra para ver as issues daquele dev (ou daquela semana).<br>💡 Use junto com o <i>Por desenvolvedor</i> para 1:1.'},
+  {cap:'Visão geral', aba:'geral', alvo:'#tblHeat', alvoCard:true, titulo:'🔥 Mapa de uso por dev', texto:'Cada célula é o % das entregas do dev com aquela prática (quanto mais forte a cor, maior). Clique numa célula para auditar.<br>💡 Células claras mostram onde vale incentivar IA, CR ou automação.'},
+
+  {cap:'Datas & Issues', aba:'datas', alvo:'#agenda', titulo:'🗓️ Agenda da data acordo', texto:'Os próximos 14 dias úteis, com as issues que vencem em cada dia, e uma coluna com as <b>vencidas</b>. Vermelho = vencida/hoje, laranja = dentro do prazo de lembrete, azul = mais adiante.<br>💡 Olhe esta tela no começo do dia.'},
+  {cap:'Datas & Issues', aba:'datas', alvo:'#tblAbertas', alvoCard:true, titulo:'📌 Issues em andamento', texto:'Tudo que está aberto, ordenado pela data acordo mais próxima. O selo <b>🔁 1x</b> indica reprogramação (passe o mouse para ver a data original). A coluna <i>Parado</i> mostra há quantos dias o status não muda.'},
+
+  {cap:'Fases (fluxo)', aba:'fases', alvo:'#kpisFluxo', titulo:'🧭 Indicadores de fluxo', texto:'<b>Ciclo mediano</b>: metade das entregas sai em até X dias.<br><b>P85</b>: 85% saem em até X dias — <b>use este número para combinar prazo</b>.<br><b>Eficiência</b>: % do ciclo com alguém trabalhando (o resto é fila).<br><b>Gargalo</b>: etapa com maior espera. <b>WIP envelhecido</b>: abertos mais velhos que o P85.'},
+  {cap:'Fases (fluxo)', aba:'fases', alvo:'#chEtapas', alvoCard:true, titulo:'⏳ Onde o tempo vai', texto:'Para cada etapa, a mediana de dias <b>trabalhando</b> (cheio) e <b>esperando na fila</b> (claro). Ex.: “Code Review Concluído” é fila esperando o teste.<br>💡 Se a fila é maior que o trabalho, o problema não é o dev — é a passagem entre etapas.'},
+  {cap:'Fases (fluxo)', aba:'fases', alvo:'#chAging', alvoCard:true, titulo:'🧓 Aging do WIP', texto:'Cada ponto é um item aberto, na etapa em que está, na altura dos dias de ciclo. Cor = situação da data acordo; losango = parado em fila.<br>💡 <b>Pontos acima da linha P85 são os primeiros a destravar</b> na daily.'},
+  {cap:'Fases (fluxo)', aba:'fases', alvo:'#chCiclo', alvoCard:true, titulo:'🎯 Previsibilidade', texto:'Cada entrega com o tempo de ciclo. Pontos espalhados = time pouco previsível; pontos concentrados abaixo do P85 = prazos confiáveis. Vermelho = entregue com atraso.'},
+  {cap:'Fases (fluxo)', aba:'fases', alvo:'#ciclo', alvoCard:true, titulo:'🧭 Ciclo por issue', texto:'Todas as barras começam no <b>dia 0 (Comprometido)</b>, então dá para comparar. Cheio = trabalho, listrado = fila, 🏁 = data acordo, tracejado = hoje. À direita, o total e o % trabalho/fila.<br>Alterne entre <b>Em andamento</b> e <b>Entregues</b>.'},
+
+  {cap:'Por desenvolvedor', aba:'devs', alvo:'#cardsDevs', titulo:'👥 Visão por desenvolvedor', texto:'Entregas, % no prazo, em andamento, vencidas e o uso de cada label por pessoa. Clique no card para ver todas as issues do dev (entregues e em andamento).<br>💡 Bom roteiro para 1:1 e feedback.'},
+
+  {cap:'Configuração', aba:'config', alvo:'#cfgPronto', alvoCard:true, titulo:'✅ Pronto para usar?', texto:'Checklist do que falta para tudo funcionar sozinho: token, sincronização, time, destinatários, gatilhos, extração D-1 e o <b>link do painel</b> (com botão copiar).'},
+  {cap:'Configuração', aba:'config', alvo:'#cfgDest', alvoCard:true, titulo:'📬 Quem recebe o quê', texto:'Cadastre a TL, gestores e PO e marque o que cada um recebe:<br>• <b>Segunda</b>: itens parados, vencidos e da semana<br>• <b>Lembretes</b>: cópia dos avisos de data acordo dos devs<br>• <b>D-1</b>: todo dia útil, o que foi entregue ontem e o que pede atenção<br>Use <i>Testar</i> para receber um exemplo.'},
+  {cap:'Configuração', aba:'config', alvo:'#tTeamId', alvoCard:true, titulo:'👥 Time pelo Tempo', texto:'Informe o Team ID do Tempo (ou procure pelo nome) e clique em <b>Buscar time e e-mails</b>. Os devs e e-mails vêm automáticos e se atualizam todo dia útil.'},
+  {cap:'Configuração', aba:'config', alvo:'#cfgKpis', alvoCard:true, titulo:'🏷️ Labels e projetos', texto:'Cada linha de label vira um KPI (pode juntar várias labels separadas por vírgula). Escolha nome e cor. Em <b>Projetos</b> ficam os projetos buscados no Jira. Depois clique em <b>💾 Salvar</b>.'},
+
+  {cap:'Rotinas', titulo:'⏰ O que acontece sozinho', texto:'<b>1h</b> — extração D-1 (foto do fechamento de ontem).<br><b>8h (dias úteis)</b> — atualiza o time pelo Tempo, sincroniza o Jira, manda <b>lembretes</b> de data acordo aos devs (TL em cópia) e o <b>resumo D-1</b>.<br><b>Segunda 8h</b> — <b>resumo semanal</b> com os principais itens parados.<br><b>A cada 2h</b> — atualiza a visão Agora.'},
+  {cap:'Rotinas', titulo:'🎯 Roteiro rápido para a TL', texto:'<b>Todo dia</b>: Datas & Issues → vencidas e vencendo; Fases → pontos acima do P85 no Aging.<br><b>Na daily</b>: destravar o que está em fila (listrado).<br><b>Na semana</b>: gargalo e eficiência do fluxo; uso de IA/CR/Automação.<br><b>No mês</b>: D-1 do último dia + período “Mês anterior” para o fechamento.<br><br>Pronto! Reabra este manual quando quiser pelo botão <b>❓ Manual</b>.'}
+];
+var tourI = 0;
+function abrirManual(i){
+  tourI = i || 0;
+  document.getElementById('tour').classList.add('on');
+  desenharIndice();
+  passoTour();
+}
+function fecharManual(){
+  document.getElementById('tour').classList.remove('on');
+  try { localStorage.setItem('dashTssManualVisto','1'); } catch(e){}
+}
+function desenharIndice(){
+  var caps = []; TOUR.forEach(function(p,i){ if(!caps.some(function(c){return c.cap===p.cap;})) caps.push({cap:p.cap, i:i}); });
+  document.getElementById('tourIndice').innerHTML = caps.map(function(c){ return '<button data-i="'+c.i+'" onclick="irPasso('+c.i+')">'+esc(c.cap)+'</button>'; }).join('');
+}
+function irPasso(i){ tourI = Math.max(0, Math.min(TOUR.length-1, i)); passoTour(); }
+function passoTour(){
+  var p = TOUR[tourI];
+  var cx = document.getElementById('tourCaixa'), luz = document.getElementById('tourLuz');
+  document.getElementById('tourCap').textContent = p.cap + ' · passo ' + (tourI+1) + ' de ' + TOUR.length;
+  document.getElementById('tourTitulo').innerHTML = p.titulo;
+  document.getElementById('tourTexto').innerHTML = p.texto;
+  document.getElementById('tourAnt').disabled = tourI===0;
+  document.getElementById('tourProx').textContent = tourI===TOUR.length-1 ? 'Concluir ✓' : 'Próximo →';
+  document.getElementById('tourBarra').style.width = ((tourI+1)/TOUR.length*100)+'%';
+  var capAtual = p.cap;
+  document.querySelectorAll('#tourIndice button').forEach(function(b){ b.classList.toggle('on', TOUR[+b.dataset.i].cap===capAtual); });
+  if(p.aba){ var abaAtiva = document.querySelector('.aba.on'); if(!abaAtiva || abaAtiva.dataset.aba!==p.aba) trocarAba(p.aba); }
+  var el = p.alvo ? document.querySelector(p.alvo) : null;
+  if(el && p.alvoCard) el = el.closest('.card') || el;
+  if(el && p.alvoPai) el = el.closest(p.alvoPai) || el;
+  if(!el || el.offsetParent === null){
+    luz.style.display = 'none'; cx.classList.add('centro'); cx.style.top = ''; cx.style.left = '';
+    document.getElementById('tour').classList.add('escuro');
+    return;
+  }
+  document.getElementById('tour').classList.remove('escuro');
+  cx.classList.remove('centro');
+  el.scrollIntoView({block:'center', behavior:'smooth'});
+  setTimeout(function(){
+    var r = el.getBoundingClientRect(), pad = 8;
+    luz.style.display = 'block';
+    luz.style.top = (r.top-pad)+'px'; luz.style.left = (r.left-pad)+'px';
+    luz.style.width = (r.width+pad*2)+'px'; luz.style.height = Math.min(r.height+pad*2, window.innerHeight-20)+'px';
+    var w = cx.offsetWidth, h = cx.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    var top, left;
+    var rb = Math.min(r.bottom, vh), rt = Math.max(r.top, 0);
+    if(rb + 16 + h <= vh - 10){ top = rb + 16; left = Math.max(12, Math.min(r.left, vw - w - 12)); }
+    else if(rt - h - 16 >= 10){ top = rt - h - 16; left = Math.max(12, Math.min(r.left, vw - w - 12)); }
+    else if(r.left - w - 20 >= 12){ left = r.left - w - 20; top = Math.max(10, Math.min(rt, vh - h - 10)); }
+    else if(r.right + w + 20 <= vw - 12){ left = r.right + 20; top = Math.max(10, Math.min(rt, vh - h - 10)); }
+    else { left = vw - w - 16; top = vh - h - 16; }
+    cx.style.top = top+'px'; cx.style.left = left+'px';
+  }, 420);
+}
+document.addEventListener('keydown', function(e){
+  if(!document.getElementById('tour').classList.contains('on')) return;
+  if(e.key==='ArrowRight') { e.preventDefault(); proxPasso(); }
+  else if(e.key==='ArrowLeft') { e.preventDefault(); irPasso(tourI-1); }
+  else if(e.key==='Escape') fecharManual();
+});
+function proxPasso(){ if(tourI===TOUR.length-1) { fecharManual(); toast('🎉 Manual concluído. Reabra pelo botão ❓ Manual.'); } else irPasso(tourI+1); }
+window.addEventListener('resize', function(){ if(document.getElementById('tour').classList.contains('on')) passoTour(); });
+
 window.addEventListener('load', function(){ carregar('agora'); });
+// primeira visita: oferece o manual
+setTimeout(function(){ var visto = false; try { visto = localStorage.getItem('dashTssManualVisto')==='1'; } catch(e){} if(!visto && D) abrirManual(0); }, 2500);
 setInterval(function(){ if(D) infoVisao(); }, 60000);
 </script>
 </body>
