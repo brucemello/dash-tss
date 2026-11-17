@@ -109,6 +109,23 @@
   .cfg-row input[type=color]{width:60px;height:36px;border:0;background:none;padding:0}
   .del{background:#FEE2E2;color:#B91C1C;border:0;border-radius:8px;height:34px;cursor:pointer}
   .nota{font-size:12px;color:var(--ink2);background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;margin-bottom:12px}
+  .listra{background:repeating-linear-gradient(135deg,var(--c) 0 3px,rgba(255,255,255,.65) 3px 6px)!important;box-shadow:inset 0 0 0 1.5px var(--c)}
+  .cic-eixo{display:grid;grid-template-columns:290px 1fr 120px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);padding:4px 0}
+  .cic-eixo .ticks{position:relative;height:16px}
+  .cic-eixo .ticks span{position:absolute;transform:translateX(-50%)}
+  .cic{display:grid;grid-template-columns:290px 1fr 120px;align-items:center;border-bottom:1px solid var(--line);min-height:44px}
+  .cic:hover{background:#FAF7FF}
+  .cic .nm{font-size:12px;padding:4px 8px;line-height:1.4;overflow:hidden}
+  .cic .nm small{color:var(--muted)}
+  .cic .trk{position:relative;height:24px;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(var(--g) - 1px),#F0EDFA calc(var(--g) - 1px),#F0EDFA var(--g))}
+  .cic .seg{top:3px;height:18px}
+  .cic .tot{font-size:12px;padding:0 8px;text-align:right}
+  .cic .tot b{font-size:14px}
+  .cic .split{display:flex;height:5px;border-radius:9px;overflow:hidden;margin-top:3px;background:#F0EDFA}
+  .mk-acordo{position:absolute;top:-3px;width:0;height:30px;border-left:3px solid var(--crit)}
+  .mk-acordo:after{content:'🏁';position:absolute;top:-14px;left:-8px;font-size:11px}
+  .mk-hoje{position:absolute;top:0;height:24px;width:0;border-left:2px dashed #1F1B2E;opacity:.5}
+  .kpi .val.txt{font-size:22px;line-height:1.2;margin-top:10px}
   .esconde{display:none!important}
 </style>
 </head>
@@ -179,14 +196,30 @@
 
   <!-- FASES -->
   <section id="aba-fases" class="esconde">
-    <div class="grid duas">
-      <div class="card"><h3>⏱️ Tempo médio por fase (dias corridos)</h3><div class="chart"><canvas id="chFases"></canvas></div><div style="font-size:12px;color:var(--muted)">Clique numa barra para ver as issues daquela fase.</div></div>
-      <div class="card"><h3>📍 Onde estão as issues abertas agora</h3><div class="chart"><canvas id="chFaseAtual"></canvas></div></div>
+    <div class="nota">🧭 <b>Como ler:</b> o ciclo conta do <b>Comprometido</b> até a conclusão. Barras <b>cheias</b> = alguém trabalhando; barras <b>listradas</b> = item parado na fila esperando a próxima etapa (ex.: “Code Review Concluído” esperando o teste). O gargalo é onde a espera é maior. Tudo é clicável para auditar.</div>
+    <div class="grid kpis" id="kpisFluxo"></div>
+    <div class="grid duas" style="margin-top:14px">
+      <div class="card"><h3>⏳ Onde o tempo vai — mediana por etapa (dias)</h3>
+        <div class="legenda"><span><i style="background:#64748B"></i>Trabalhando</span><span><i class="listra" style="--c:#64748B"></i>Esperando na fila</span></div>
+        <div class="chart"><canvas id="chEtapas"></canvas></div>
+        <div style="font-size:12px;color:var(--muted)">Entregas do período. Clique numa etapa para ver as issues que mais demoraram nela.</div></div>
+      <div class="card"><h3>🧓 Aging do WIP — há quantos dias cada item aberto está no ciclo</h3>
+        <div class="legenda"><span><i style="background:var(--crit)"></i>Data acordo vencida</span><span><i style="background:var(--warn)"></i>Vence em até <span class="nLembrete"></span>d</span><span><i style="background:var(--s1)"></i>No prazo</span><span><i style="background:#A8A3BD"></i>Sem data acordo</span><span>┄ P50 / P85 do ciclo</span></div>
+        <div class="chart"><canvas id="chAging"></canvas></div>
+        <div style="font-size:12px;color:var(--muted)">Pontos acima da linha P85 já estão mais velhos que 85% das entregas — priorize destravar esses.</div></div>
     </div>
-    <h2>📊 Linha do tempo por issue (início e conclusão de cada fase)</h2>
+    <div class="card" style="margin-top:14px"><h3>🎯 Previsibilidade — tempo de ciclo de cada entrega</h3>
+      <div class="legenda"><span><i style="background:var(--ok)"></i>Entregue no prazo</span><span><i style="background:var(--crit)"></i>Entregue com atraso</span><span>┄ P50 / P85</span></div>
+      <div class="chart" style="height:260px"><canvas id="chCiclo"></canvas></div></div>
+    <h2>🧭 Ciclo por issue <span style="font-size:12px;color:var(--muted);font-weight:500">— dia 0 = entrou em Comprometido · ordenado pelo maior ciclo</span></h2>
     <div class="card">
-      <div class="legenda" id="legFases"></div>
-      <div class="gantt" id="gantt"></div>
+      <div class="ferr" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <button class="btn solid" id="cicAbe" onclick="modoCiclo('abe')">Em andamento</button>
+        <button class="btn ghost" id="cicEnt" onclick="modoCiclo('ent')">Entregues no período</button>
+        <span style="flex:1"></span>
+        <div class="legenda" id="legEtapas" style="margin:0"></div>
+      </div>
+      <div id="ciclo"></div>
     </div>
   </section>
 
@@ -242,6 +275,8 @@ var charts = {};
 var modalState = null;
 var COR_SERIE = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#6250d6','#e34948'];
 var COR_FASE = {};
+var COR_ETAPA = {1:'#A8A3BD',2:'#2a78d6',3:'#eda100',4:'#eb6834',5:'#e87ba4',6:'#1baf7a',7:'#6250d6'};
+var modoCic = 'abe';
 
 // ---------- infraestrutura ----------
 var temGAS = typeof google !== 'undefined' && google.script && google.script.run;
@@ -278,7 +313,9 @@ function prepararFiltros(){
   sProj.innerHTML = '<option value="">Todos</option>' + Object.keys(proj).sort().map(function(n){return '<option>'+esc(n)+'</option>';}).join('');
   var ordem = D.ordemFases.slice();
   D.fases.forEach(function(f){ if(ordem.indexOf(f.fase)<0) ordem.push(f.fase); });
-  ordem.forEach(function(f,i){ COR_FASE[f] = /conclu/i.test(f) ? '#10B981' : COR_SERIE[i % COR_SERIE.length]; });
+  var ordF = {}; D.fases.forEach(function(f){ if(ordF[f.fase]===undefined) ordF[f.fase]=f.ordem; });
+  var extra = ['#008300','#e34948','#6250d6','#2a78d6'], ix = 0;
+  Object.keys(ordF).sort(function(a,b){return ordF[a]-ordF[b];}).forEach(function(f){ COR_FASE[f] = /conclu/i.test(f) ? '#10B981' : (COR_ETAPA[ordF[f]] || extra[ix++ % extra.length]); });
   document.querySelectorAll('.nLembrete').forEach(function(e){ e.textContent = D.params.diasLembrete; });
   var sync = D.ultimaSync ? new Date(D.ultimaSync).toLocaleString('pt-BR') : 'nunca';
   document.getElementById('subInfo').textContent = D.issues.length + ' issues · última sincronização: ' + sync + ' · TL: ' + (D.params.emailTL || 'não informado');
@@ -473,42 +510,147 @@ function renderAbertas(abertas){
   document.getElementById('tblAbertas').innerHTML = cabTabela() + (l.length ? l.map(linhaTabela).join('') : '<tr><td colspan="13" class="vazio">Nenhuma issue em andamento 🎉</td></tr>');
 }
 
-function renderFases(todas, ent, abertas){
-  var chaves = {}; ent.concat(abertas).forEach(function(x){ chaves[x.k]=x; });
-  var segs = D.fases.filter(function(f){ return chaves[f.k]; });
-  var porFase = {};
-  segs.forEach(function(s){ if(/conclu/i.test(s.fase)) return; var o=porFase[s.fase]=porFase[s.fase]||{tot:0,iss:{},ord:s.ordem}; o.tot+=s.dias; o.iss[s.k]=(o.iss[s.k]||0)+s.dias; });
-  var fs = Object.keys(porFase).sort(function(a,b){return porFase[a].ord-porFase[b].ord;});
-  var medias = fs.map(function(f){ var n=Object.keys(porFase[f].iss).length; return n? +(porFase[f].tot/n).toFixed(1) : 0; });
-  var o = opc({ indexAxis:'y', onClick:function(e,els){ if(els.length){ var f=fs[els[0].index]; var l=Object.keys(porFase[f].iss).map(function(k){var x=Object.assign({},chaves[k]); x._diasFase=porFase[f].iss[k].toFixed(1); return x;}).sort(function(a,b){return b._diasFase-a._diasFase;}); LISTAS['fz']={titulo:'🔀 Fase '+f+' — tempo por issue',lista:l,cor:COR_FASE[f]||'#7C3AED',faseCol:true}; abrirLista('fz'); } } });
-  o.scales.x.grid = {color:'#F0EDFA'}; o.scales.y.grid = {display:false};
-  mkChart('chFases', {type:'bar', data:{labels:fs, datasets:[{label:'Média (dias)', data:medias, backgroundColor:fs.map(function(f){return COR_FASE[f]||'#7C3AED';}), borderRadius:4, borderSkipped:'start'}]}, options:o});
-
-  var atual = {}; abertas.forEach(function(x){ (atual[x.fase||x.status]=atual[x.fase||x.status]||[]).push(x); });
-  var fa = Object.keys(atual).sort(function(a,b){ return (D.ordemFases.indexOf(a)+100)%200-(D.ordemFases.indexOf(b)+100)%200; });
-  mkChart('chFaseAtual', {type:'bar', data:{labels:fa, datasets:[{label:'Issues', data:fa.map(function(f){return atual[f].length;}), backgroundColor:fa.map(function(f){return COR_FASE[f]||'#3B82F6';}), borderRadius:4, borderSkipped:'bottom'}]},
-    options:opc({ onClick:function(e,els){ if(els.length){ var f=fa[els[0].index]; LISTAS['fa']={titulo:'📍 Abertas na fase '+f,lista:atual[f],cor:COR_FASE[f]||'#3B82F6'}; abrirLista('fa'); } } })});
-
-  // Gantt
-  var leg = Object.keys(COR_FASE).filter(function(f){return segs.some(function(s){return s.fase===f;});});
-  document.getElementById('legFases').innerHTML = leg.map(function(f){return '<span><i style="background:'+COR_FASE[f]+'"></i>'+esc(f)+'</span>';}).join('') + '<span><i style="background:var(--crit);width:3px"></i>Data acordo</span><span><i style="background:#111827;opacity:.35;width:2px"></i>Hoje</span>';
-  var issuesG = abertas.concat(ent).filter(function(x){ return segs.some(function(s){return s.k===x.k;}); }).slice(0,80);
-  if(!issuesG.length){ document.getElementById('gantt').innerHTML = '<div class="vazio">Sem histórico de fases ainda. Rode a sincronização do Jira.</div>'; return; }
-  var min = Infinity, max = -Infinity, porK = {};
-  segs.forEach(function(s){ if(!issuesG.some(function(x){return x.k===s.k;})) return; (porK[s.k]=porK[s.k]||[]).push(s); });
-  Object.keys(porK).forEach(function(k){ porK[k].forEach(function(s){ var a=dh(s.ini).getTime(), b=(s.fim?dh(s.fim):new Date()).getTime(); if(a<min)min=a; if(b>max)max=b; }); });
-  issuesG.forEach(function(x){ if(x.acordo){ var t=d(x.acordo).getTime(); if(t>max)max=t+86400000; } });
-  // corta o início para os últimos 45 dias para não esmagar a visão
-  min = Math.max(min, Date.now()-45*86400000);
-  var span = Math.max(1, max-min), pos = function(t){ return Math.max(0,Math.min(100,(t-min)/span*100)); };
-  var hojePos = pos(Date.now());
-  document.getElementById('gantt').innerHTML = issuesG.map(function(x){
-    var segsHtml = (porK[x.k]||[]).map(function(s){ var a=dh(s.ini).getTime(), b=(s.fim?dh(s.fim):new Date()).getTime(); if(b<min) return ''; var l=pos(a), w=Math.max(.4,pos(b)-l);
-      return '<div class="seg" style="left:'+l+'%;width:'+w+'%;background:'+(COR_FASE[s.fase]||'#A78BFA')+'" title="'+esc(s.fase)+' ('+esc(s.status)+')\nInício: '+new Date(a).toLocaleString('pt-BR')+'\nFim: '+(s.fim?new Date(b).toLocaleString('pt-BR'):'em andamento')+'\n'+s.dias+' dia(s)"></div>'; }).join('');
-    var marco = x.acordo ? '<div class="marco" style="left:'+pos(d(x.acordo).getTime()+43200000)+'%" title="Data acordo '+br(x.acordo)+'"></div>' : '';
-    return '<div class="grow"><div class="nm" title="'+esc(x.resumo)+'"><a href="#" onclick="abrirIssue(\''+x.k+'\');return false"><b>'+esc(x.k)+'</b></a> · '+esc(x.dev)+'</div><div class="trk">'+segsHtml+marco+'<div class="hoje" style="left:'+hojePos+'%"></div></div></div>';
-  }).join('');
+// ---------- fluxo (aba Fases) ----------
+var DIA = 86400000;
+function segsDe(k){
+  if(!segsDe._m){ segsDe._m = {}; D.fases.forEach(function(f){ (segsDe._m[f.k]=segsDe._m[f.k]||[]).push(f); });
+    Object.keys(segsDe._m).forEach(function(k){ segsDe._m[k].sort(function(a,b){ return a.ini<b.ini?-1:1; }); }); }
+  return segsDe._m[k] || [];
 }
+/** Métricas de fluxo de uma issue: início do ciclo (Comprometido), ciclo, trabalho x espera e por etapa. */
+function fluxo(x){
+  if(x._fl) return x._fl;
+  var ordC = D.params.ordemCompromisso || 3;
+  var segs = segsDe(x.k).filter(function(s){ return s.ordem >= ordC && s.tipo !== 'Fim' && s.ini; });
+  var agora = Date.now();
+  var r = {segs:[], ini:null, fim:null, ciclo:null, trab:0, esp:0, etapas:{}, atual:null};
+  if(segs.length){
+    r.ini = dh(segs[0].ini).getTime();
+    r.fim = x.conclusao ? (segs[segs.length-1].fim ? dh(segs[segs.length-1].fim).getTime() : agora) : agora;
+    segs.forEach(function(s){
+      var a = dh(s.ini).getTime(), b = s.fim ? dh(s.fim).getTime() : agora, dd = Math.max(0,(b-a)/DIA);
+      r.segs.push({fase:s.fase, status:s.status, tipo:s.tipo, a:a, b:b, dias:dd});
+      var e = r.etapas[s.fase] = r.etapas[s.fase] || {trab:0, esp:0, ordem:s.ordem};
+      if(s.tipo==='Espera'){ r.esp+=dd; e.esp+=dd; } else { r.trab+=dd; e.trab+=dd; }
+    });
+    r.ciclo = (r.fim - r.ini)/DIA;
+    var ult = segs[segs.length-1]; r.atual = {fase:ult.fase, tipo:ult.tipo, status:ult.status};
+  } else if(x.inicio){
+    r.ini = d(x.inicio).getTime(); r.fim = x.conclusao ? d(x.conclusao).getTime()+DIA*0.75 : agora;
+    r.ciclo = (r.fim - r.ini)/DIA;
+  }
+  x._fl = r; return r;
+}
+function percentil(arr, p){ if(!arr.length) return 0; var a = arr.slice().sort(function(x,y){return x-y;}); var i = (a.length-1)*p, lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi]-a[lo])*(i-lo); }
+function mediana(arr){ return percentil(arr, .5); }
+function f1(n){ return (Math.round(n*10)/10).toLocaleString('pt-BR'); }
+function corSit(x){ if(x.diasParaAcordo==null) return '#A8A3BD'; if(x.diasParaAcordo<0) return '#EF4444'; if(x.diasParaAcordo<=D.params.diasLembrete) return '#F59E0B'; return '#2a78d6'; }
+
+// linhas P50/P85 horizontais nos gráficos de dispersão
+var pluginLinhas = { id:'linhasRef', afterDatasetsDraw:function(ch){ var L = ch.options.plugins.linhasRef; if(!L) return; var y = ch.scales.y, ctx = ch.ctx, ar = ch.chartArea;
+  L.forEach(function(l){ if(!l.v) return; var py = y.getPixelForValue(l.v); if(py<ar.top||py>ar.bottom) return; ctx.save(); ctx.setLineDash([6,4]); ctx.strokeStyle = l.cor; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ar.left,py); ctx.lineTo(ar.right,py); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = l.cor; ctx.font = '600 11px Segoe UI, sans-serif'; ctx.textAlign = 'right'; ctx.fillText(l.rot+' '+f1(l.v)+'d', ar.right-4, py-4); ctx.restore(); }); } };
+
+function renderFases(todas, ent, abertas){
+  segsDe._m = null; D.issues.forEach(function(x){ x._fl = null; });
+  var entF = ent.filter(function(x){ return fluxo(x).ciclo != null; });
+  var ciclos = entF.map(function(x){ return fluxo(x).ciclo; });
+  var p50 = mediana(ciclos), p85 = percentil(ciclos, .85);
+  var trab = 0, esp = 0; entF.forEach(function(x){ trab += fluxo(x).trab; esp += fluxo(x).esp; });
+  var efic = pct(trab, trab+esp);
+
+  // por etapa (entregas do período)
+  var et = {};
+  entF.forEach(function(x){ var e = fluxo(x).etapas; Object.keys(e).forEach(function(f){ var o = et[f] = et[f] || {trab:[], esp:[], tot:[], ordem:e[f].ordem, iss:[]}; o.trab.push(e[f].trab); o.esp.push(e[f].esp); o.tot.push(e[f].trab+e[f].esp); o.iss.push({x:x, dias:e[f].trab+e[f].esp, esp:e[f].esp}); }); });
+  var etapas = Object.keys(et).sort(function(a,b){ return et[a].ordem-et[b].ordem; });
+  var gargalo = etapas.slice().sort(function(a,b){ return mediana(et[b].esp)-mediana(et[a].esp); })[0];
+
+  var abF = abertas.map(function(x){ return {x:x, fl:fluxo(x)}; });
+  var idade = function(o){ return o.fl.ciclo != null ? o.fl.ciclo : (o.x.diasAtuacao||0); };
+  var velhos = abF.filter(function(o){ return p85 && idade(o) > p85; }).map(function(o){return o.x;});
+  var naFila = abF.filter(function(o){ return o.fl.atual && o.fl.atual.tipo==='Espera'; }).map(function(o){return o.x;});
+
+  var listaGargalo = gargalo ? et[gargalo].iss.slice().sort(function(a,b){return b.dias-a.dias;}).map(function(o){ var c = Object.assign({}, o.x); c._diasFase = f1(o.dias)+' ('+f1(o.esp)+' fila)'; return c; }) : [];
+  if(gargalo) LISTAS['garg'] = {titulo:'🚧 Gargalo: '+gargalo, lista:listaGargalo, cor:COR_FASE[gargalo]||'#7C3AED', faseCol:true};
+  var porCiclo = entF.slice().sort(function(a,b){ return fluxo(b).ciclo-fluxo(a).ciclo; });
+  var cards = [
+    {ico:'⏱️', rot:'Ciclo mediano', val:f1(p50)+'d', det:'metade das entregas sai em até '+f1(p50)+' dias', cor:'#7C3AED', click:registrar('cic50','⏱️ Entregas por tempo de ciclo', porCiclo, '#7C3AED')},
+    {ico:'🎯', rot:'Previsão (P85)', val:f1(p85)+'d', det:'85% das entregas saem em até '+f1(p85)+' dias', cor:'#2a78d6', click:registrar('cic85','🎯 Entregas acima do P85', porCiclo.filter(function(x){return fluxo(x).ciclo>p85;}), '#2a78d6')},
+    {ico:'⚡', rot:'Eficiência do fluxo', val:efic+'%', det:'do ciclo com alguém trabalhando', cor:'#1baf7a', pct:efic, click:registrar('efi','⚡ Entregas com mais tempo em fila', entF.slice().sort(function(a,b){ return fluxo(b).esp-fluxo(a).esp; }), '#1baf7a')},
+    {ico:'🚧', rot:'Gargalo (maior fila)', val:'<span class="txt">'+esc(gargalo||'—')+'</span>', det:gargalo ? 'mediana de '+f1(mediana(et[gargalo].esp))+'d esperando' : 'sem dados', cor:COR_FASE[gargalo]||'#eb6834', click:"abrirLista('garg')"},
+    {ico:'🧓', rot:'WIP envelhecido', val:velhos.length, det:'abertos há mais que o P85 ('+f1(p85)+'d)', cor:'#EF4444', click:registrar('velho','🧓 Itens abertos mais velhos que o P85', velhos.slice().sort(function(a,b){return fluxo(b).ciclo-fluxo(a).ciclo;}), '#EF4444')},
+    {ico:'🧊', rot:'Parados na fila agora', val:naFila.length, det:'em status de espera (“… Concluído”)', cor:'#64748B', click:registrar('fila','🧊 Abertos parados em fila', naFila, '#475569')}
+  ];
+  document.getElementById('kpisFluxo').innerHTML = cards.map(function(c){ var h = cardKpi(c); return c.val && String(c.val).indexOf('class="txt"')>=0 ? h.replace('<div class="val">','<div class="val txt">') : h; }).join('');
+
+  // Onde o tempo vai: trabalho x espera por etapa (mediana)
+  var oE = opc({ indexAxis:'y', onClick:function(e,els){ if(els.length){ var f = etapas[els[0].index]; LISTAS['etp'] = {titulo:'🔀 '+f+' — tempo por issue', lista:et[f].iss.slice().sort(function(a,b){return b.dias-a.dias;}).map(function(o){ var c = Object.assign({}, o.x); c._diasFase = f1(o.dias)+' ('+f1(o.esp)+' fila)'; return c; }), cor:COR_FASE[f]||'#7C3AED', faseCol:true}; abrirLista('etp'); } } });
+  oE.scales.x.stacked = true; oE.scales.y.stacked = true; oE.scales.x.grid = {color:'#F0EDFA'}; oE.scales.y.grid = {display:false};
+  oE.plugins.tooltip.callbacks = { afterBody:function(it){ var f = etapas[it[0].dataIndex]; return 'P85 total: '+f1(percentil(et[f].tot,.85))+'d · '+et[f].iss.length+' issues'; } };
+  mkChart('chEtapas', {type:'bar', data:{labels:etapas, datasets:[
+    {label:'Trabalhando', data:etapas.map(function(f){ return +mediana(et[f].trab).toFixed(1); }), backgroundColor:etapas.map(function(f){ return COR_FASE[f]||'#7C3AED'; }), borderRadius:4, borderSkipped:false, borderColor:'#fff', borderWidth:{right:2}},
+    {label:'Esperando na fila', data:etapas.map(function(f){ return +mediana(et[f].esp).toFixed(1); }), backgroundColor:etapas.map(function(f){ return hexA(COR_FASE[f]||'#7C3AED', .3); }), borderColor:etapas.map(function(f){ return COR_FASE[f]||'#7C3AED'; }), borderWidth:1.5, borderRadius:4, borderSkipped:false}
+  ]}, options:oE});
+
+  // Aging do WIP
+  var colunas = []; abF.forEach(function(o){ var f = o.fl.atual ? o.fl.atual.fase : (o.x.fase||o.x.status); if(colunas.indexOf(f)<0) colunas.push(f); });
+  var ordDe = function(f){ var s = D.fases.filter(function(z){return z.fase===f;})[0]; return s ? s.ordem : 50; };
+  colunas.sort(function(a,b){ return ordDe(a)-ordDe(b); });
+  var pts = abF.map(function(o, i){ var f = o.fl.atual ? o.fl.atual.fase : (o.x.fase||o.x.status); return {x: colunas.indexOf(f) + ((i*37)%9-4)/14, y: +idade(o).toFixed(1), _x:o.x, _f:f, _fila: o.fl.atual && o.fl.atual.tipo==='Espera'}; });
+  var oA = opc({ onClick:function(e,els){ if(els.length) abrirIssue(pts[els[0].index]._x.k); },
+    plugins:{ legend:{display:false}, linhasRef:[{v:p50, rot:'P50', cor:'#1baf7a'},{v:p85, rot:'P85', cor:'#EF4444'}],
+      tooltip:{backgroundColor:'#1F1B2E', padding:10, cornerRadius:8, callbacks:{ label:function(c){ var p = pts[c.dataIndex], x = p._x; return [x.k+' — '+x.dev, (p._fila?'🧊 na fila: ':'🛠️ ')+x.status, f1(p.y)+' dias no ciclo · '+(x.acordo?'acordo '+br(x.acordo):'sem data acordo')]; } }} } });
+  oA.scales.x = { type:'linear', min:-0.6, max:Math.max(colunas.length-0.4, 0.6), grid:{display:false}, ticks:{ stepSize:1, maxRotation:0, autoSkip:false, color:'#5B5675', callback:function(v){ return Number.isInteger(v) ? (colunas[v]||'') : ''; } } };
+  oA.scales.y.title = {display:true, text:'dias desde Comprometido', color:'#9A95B0'};
+  oA.scales.y.suggestedMax = Math.max(p85*1.15, 1);
+  mkChart('chAging', {type:'scatter', plugins:[pluginLinhas], data:{datasets:[{ data:pts, pointRadius:7, pointHoverRadius:10, pointStyle:pts.map(function(p){ return p._fila ? 'rectRot' : 'circle'; }), backgroundColor:pts.map(function(p){ return corSit(p._x); }), borderColor:'#fff', borderWidth:2 }]}, options:oA});
+
+  // Previsibilidade
+  var pc = entF.map(function(x){ return {x:d(x.conclusao).getTime(), y:+fluxo(x).ciclo.toFixed(1), _x:x}; });
+  var oC = opc({ onClick:function(e,els){ if(els.length) abrirIssue(pc[els[0].index]._x.k); },
+    plugins:{ legend:{display:false}, linhasRef:[{v:p50, rot:'P50', cor:'#1baf7a'},{v:p85, rot:'P85', cor:'#EF4444'}],
+      tooltip:{backgroundColor:'#1F1B2E', padding:10, cornerRadius:8, callbacks:{ label:function(c){ var x = pc[c.dataIndex]._x; return [x.k+' — '+x.dev, 'Ciclo '+f1(pc[c.dataIndex].y)+'d · entregue '+br(x.conclusao), x.atrasou?'⏳ com atraso':'✅ no prazo']; } }} } });
+  oC.scales.x = { type:'linear', grid:{display:false}, ticks:{ color:'#5B5675', maxTicksLimit:10, callback:function(v){ return br(fmt(new Date(v))).substring(0,5); } } };
+  oC.scales.y.title = {display:true, text:'dias de ciclo', color:'#9A95B0'};
+  mkChart('chCiclo', {type:'scatter', plugins:[pluginLinhas], data:{datasets:[{ data:pc, pointRadius:6, pointHoverRadius:9, backgroundColor:pc.map(function(p){ return p._x.atrasou ? '#EF4444' : '#10B981'; }), borderColor:'#fff', borderWidth:2 }]}, options:oC});
+
+  CICLO = {abe:abertas, ent:entF, p85:p85};
+  desenharCiclo();
+}
+
+var CICLO = null;
+function modoCiclo(m){ modoCic = m; document.getElementById('cicAbe').className = 'btn '+(m==='abe'?'solid':'ghost'); document.getElementById('cicEnt').className = 'btn '+(m==='ent'?'solid':'ghost'); desenharCiclo(); }
+function desenharCiclo(){
+  if(!CICLO) return;
+  var lista = (modoCic==='abe' ? CICLO.abe : CICLO.ent).filter(function(x){ return fluxo(x).ciclo != null; })
+    .sort(function(a,b){ return fluxo(b).ciclo - fluxo(a).ciclo; });
+  var el = document.getElementById('ciclo');
+  var etapasVis = {}; lista.forEach(function(x){ fluxo(x).segs.forEach(function(s){ etapasVis[s.fase] = s; }); });
+  document.getElementById('legEtapas').innerHTML = Object.keys(etapasVis).sort(function(a,b){ return (COR_ETAPA_ORD(a))-(COR_ETAPA_ORD(b)); }).map(function(f){ return '<span><i style="background:'+(COR_FASE[f]||'#A78BFA')+'"></i>'+esc(f)+'</span>'; }).join('') +
+    '<span><i class="listra" style="--c:#64748B"></i>fila</span><span>🏁 data acordo</span>' + (modoCic==='abe' ? '<span>┆ hoje</span>' : '');
+  if(!lista.length){ el.innerHTML = '<div class="vazio">Sem issues com histórico de fluxo aqui. Rode a sincronização do Jira.</div>'; return; }
+  var max = 1;
+  lista.forEach(function(x){ var f = fluxo(x); max = Math.max(max, f.ciclo); if(x.acordo){ var ra = (d(x.acordo).getTime()+DIA - f.ini)/DIA; if(ra>0) max = Math.max(max, ra); } });
+  max = Math.ceil(max * 1.04);
+  var passo = [1,2,5,7,10,14,21,30].filter(function(p){ return max/p <= 12; })[0] || 30;
+  var ticks = ''; for(var t=0; t<=max; t+=passo) ticks += '<span style="left:'+(t/max*100)+'%">'+t+'d</span>';
+  var g = (passo/max*100)+'%';
+  var mostrar = el.dataset.todos==='1' ? lista : lista.slice(0,40);
+  el.innerHTML = '<div class="cic-eixo"><div style="padding-left:8px">Issue · dev · status atual</div><div class="ticks">'+ticks+'</div><div style="text-align:right;padding-right:8px">ciclo · trab/fila</div></div>' +
+    mostrar.map(function(x){
+      var f = fluxo(x), pos = function(t){ return Math.max(0, Math.min(100, (t - f.ini)/DIA/max*100)); };
+      var segs = f.segs.map(function(s){ var l = pos(s.a), w = Math.max(.35, pos(s.b)-l), cor = COR_FASE[s.fase]||'#A78BFA';
+        return '<div class="seg'+(s.tipo==='Espera'?' listra':'')+'" style="--c:'+cor+';left:'+l+'%;width:'+w+'%;background:'+cor+'" title="'+esc(s.fase)+' — '+(s.tipo==='Espera'?'🧊 na fila':'🛠️ trabalhando')+' ('+esc(s.status)+')\n'+new Date(s.a).toLocaleString('pt-BR')+' → '+(x.conclusao||s.b<Date.now()-60000?new Date(s.b).toLocaleString('pt-BR'):'agora')+'\n'+f1(s.dias)+' dia(s)"></div>'; }).join('');
+      var mk = x.acordo ? '<div class="mk-acordo" style="left:'+pos(d(x.acordo).getTime()+DIA)+'%" title="Data acordo '+br(x.acordo)+(x.reprog?' (reprogramada '+x.reprog+'x, original '+br(x.acordoOrig)+')':'')+'"></div>' : '';
+      var hj = x.aberta ? '<div class="mk-hoje" style="left:'+pos(Date.now())+'%"></div>' : '';
+      var tot = f.trab + f.esp, pT = pct(f.trab, tot);
+      var alerta = CICLO.p85 && f.ciclo > CICLO.p85 ? ' style="color:var(--crit)"' : '';
+      return '<div class="cic"><div class="nm"><a href="#" onclick="abrirIssue(\''+x.k+'\');return false"><b>'+esc(x.k)+'</b></a> · '+esc(x.dev)+'<br><small>'+esc(x.status)+'</small> '+situacao(x)+'</div>'+
+        '<div class="trk" style="--g:'+g+'">'+segs+mk+hj+'</div>'+
+        '<div class="tot"><b'+alerta+'>'+f1(f.ciclo)+'d</b><div class="split" title="'+pT+'% trabalhando · '+(100-pT)+'% em fila"><i style="width:'+pT+'%;background:#1baf7a"></i><i style="width:'+(100-pT)+'%;background:#CBD5E1"></i></div><small style="color:var(--muted)">'+pT+'% trab · '+(100-pT)+'% fila</small></div></div>';
+    }).join('') +
+    (lista.length > 40 && el.dataset.todos!=='1' ? '<div style="text-align:center;padding:10px"><button class="btn ghost" onclick="document.getElementById(\'ciclo\').dataset.todos=\'1\';desenharCiclo()">Mostrar todas ('+lista.length+')</button></div>' : '');
+}
+function COR_ETAPA_ORD(f){ var s = D.fases.filter(function(z){return z.fase===f;})[0]; return s ? s.ordem : 50; }
 
 function renderDevs(todas, ent, abertas){
   var nomes = {}; todas.forEach(function(x){nomes[x.dev]=1;}); D.time.forEach(function(t){nomes[t.nome]=1;});

@@ -48,7 +48,7 @@ function sincronizarJira() {
         r.diasAtuacao, r.diasParado, r.ultimaMov || '', r.labels.join(', '),
         cfg.jiraUrl + '/browse/' + r.chave].concat(kpiVals));
       r.segmentos.forEach(function (s) {
-        linhasFases.push([r.chave, r.usuario, s.status, s.fase, cfg.ordemFase[s.fase] || 50,
+        linhasFases.push([r.chave, r.usuario, s.status, s.fase, classificarStatus_(s.status, cfg).ordem,
           s.inicio, s.fim || '', Math.round(((s.fim || new Date()) - s.inicio) / 864000) / 100,
           s.fim ? 'NÃO' : 'SIM']);
       });
@@ -116,7 +116,7 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
     });
   });
 
-  var faseDe = function (st) { return cfg.fases[String(st || '').toLowerCase()] || st || '—'; };
+  var faseDe = function (st) { return classificarStatus_(st, cfg).fase; };
   var atual = { status: statusInicial || status, inicio: criado };
   transicoes.forEach(function (t) {
     segmentos.push({ status: atual.status, fase: faseDe(atual.status), inicio: atual.inicio, fim: t.quando });
@@ -131,8 +131,8 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
   var ordemIni = cfg.ordemFase[cfg.faseInicio] || 4;
   var inicio = null;
   for (var s = 0; s < segmentos.length; s++) {
-    var o = cfg.ordemFase[segmentos[s].fase];
-    if (o !== undefined && o >= ordemIni && o < 9) { inicio = segmentos[s].inicio; break; }
+    var o = classificarStatus_(segmentos[s].status, cfg).ordem;
+    if (o >= ordemIni && o < 9) { inicio = segmentos[s].inicio; break; }
   }
   if (!inicio && segmentos.length > 1) inicio = segmentos[1].inicio;
   if (!inicio) inicio = criado;

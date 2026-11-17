@@ -101,11 +101,14 @@ function serializarIssue_(x) {
   return o;
 }
 
-function lerFases_() {
+function lerFases_(cfg) {
+  cfg = cfg || getConfig();
   return lerTabela_(ABA.FASES).map(function (r) {
+    // reclassifica na leitura: mudar o mapeamento na configuração vale sem sincronizar
+    var c = classificarStatus_(r['Status'], cfg);
     return {
-      k: chaveIssue_(r['Issue']), fase: String(r['Fase'] || ''), status: String(r['Status'] || ''),
-      ordem: Number(r['Ordem']) || 50,
+      k: chaveIssue_(r['Issue']), fase: c.fase, status: String(r['Status'] || ''),
+      ordem: c.ordem, tipo: c.tipo,
       ini: r['Início'] instanceof Date ? fmtISOHora_(r['Início']) : '',
       fim: r['Fim'] instanceof Date ? fmtISOHora_(r['Fim']) : '',
       dias: Number(r['Dias']) || 0, aberto: sim_(r['Em aberto?'])

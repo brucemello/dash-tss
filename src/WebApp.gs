@@ -28,14 +28,14 @@ function getDashboardData() {
     planilhaUrl: ss_().getUrl(),
     params: {
       diasLembrete: cfg.diasLembrete, diasParado: cfg.diasParado, jiraUrl: cfg.jiraUrl,
-      emailTL: cfg.emailTL, faseInicio: cfg.faseInicio
+      emailTL: cfg.emailTL, faseInicio: cfg.faseInicio, ordemCompromisso: 3
     },
     kpis: cfg.kpis.map(function (k) { return { id: k.id, nome: k.nome, labels: k.labels.join(', '), cor: k.cor }; }),
     projetos: cfg.projetos,
     time: cfg.time.map(function (t) { return { usuario: t.usuario, nome: t.nome }; }),
     ordemFases: ordemFases,
     issues: d.issues.map(serializarIssue_),
-    fases: lerFases_()
+    fases: lerFases_(cfg)
   };
 }
 

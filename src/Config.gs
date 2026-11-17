@@ -22,7 +22,7 @@ var BLOCOS = {
   PROJETOS: { col: 4,  ncol: 2, titulo: '📁 Projetos Jira',        cab: ['Projeto (nome ou chave)', 'Ativo'] },
   LABELS:   { col: 7,  ncol: 4, titulo: '🏷️ Labels → KPIs',        cab: ['Label(s) Jira (separe por vírgula)', 'Nome do KPI', 'Cor', 'Ativo'] },
   TIME:     { col: 12, ncol: 4, titulo: '👥 Time',                 cab: ['Usuário Jira', 'Nome', 'E-mail', 'Ativo'] },
-  FASES:    { col: 17, ncol: 3, titulo: '🔀 Status → Fases',       cab: ['Status Jira', 'Fase', 'Ordem'] }
+  FASES:    { col: 17, ncol: 4, titulo: '🔀 Status → Etapas',      cab: ['Status Jira', 'Etapa', 'Ordem', 'Tipo (Trabalho/Espera/Fim)'] }
 };
 
 var PARAMS_PADRAO = [
@@ -76,25 +76,41 @@ var TIME_PADRAO = [
 ];
 
 var FASES_PADRAO = [
-  ['Backlog', 'Backlog', 1],
-  ['Aberto', 'A fazer', 2],
-  ['To Do', 'A fazer', 2],
-  ['Pendente', 'A fazer', 2],
-  ['Em Análise', 'Análise', 3],
-  ['Em Desenvolvimento', 'Desenvolvimento', 4],
-  ['In Progress', 'Desenvolvimento', 4],
-  ['Em Andamento', 'Desenvolvimento', 4],
-  ['Code Review', 'Code Review', 5],
-  ['Em Revisão', 'Code Review', 5],
-  ['Em Teste', 'Teste', 6],
-  ['Testing', 'Teste', 6],
-  ['Aguardando Teste', 'Teste', 6],
-  ['Homologação', 'Homologação', 7],
-  ['Concluído', 'Concluído', 9],
-  ['Done', 'Concluído', 9],
-  ['Fechado', 'Concluído', 9],
-  ['Resolvido', 'Concluído', 9]
+  ['Backlog', 'Backlog', 1, 'Espera'],
+  ['Em Refinamento', 'Refinamento', 2, 'Trabalho'],
+  ['Refinamento Concluído', 'Refinamento', 2, 'Espera'],
+  ['Comprometido', 'Comprometido', 3, 'Espera'],
+  ['Em Desenvolvimento', 'Desenvolvimento', 4, 'Trabalho'],
+  ['Desenvolvimento Concluído', 'Desenvolvimento', 4, 'Espera'],
+  ['Em Code Review', 'Code Review', 5, 'Trabalho'],
+  ['Code Review Concluído', 'Code Review', 5, 'Espera'],
+  ['Em Teste de Aceitação', 'Teste de Aceitação', 6, 'Trabalho'],
+  ['Teste de Aceitação Concluído', 'Teste de Aceitação', 6, 'Espera'],
+  ['Concluído', 'Concluído', 9, 'Fim'],
+  ['Cancelado', 'Concluído', 9, 'Fim']
 ];
+
+/**
+ * Classifica um status do Jira em etapa / tipo / ordem.
+ * Usa a tabela da configuração; se o status não estiver lá, deduz pelo nome:
+ *   "Em X" → etapa X (Trabalho) · "X Concluído" → etapa X (Espera, fila para a próxima)
+ */
+var ORDEM_PALAVRAS_ = [[/backlog|aberto|to do|pendente|novo/i, 1], [/refin|an[aá]lise/i, 2], [/compromet/i, 3],
+  [/desenv|progress|andamento/i, 4], [/review|revis/i, 5], [/teste|test|aceita/i, 6], [/homolog/i, 7]];
+
+function classificarStatus_(status, cfg) {
+  var st = String(status || '').trim();
+  var m = cfg && cfg.fases[st.toLowerCase()];
+  if (m) return m;
+  if (/^(conclu[ií]do|done|fechado|resolvido|cancelado|closed)$/i.test(st)) return { fase: 'Concluído', ordem: 9, tipo: 'Fim' };
+  var fase = st.replace(/^em\s+/i, '').replace(/\s+conclu[ií]d[oa]$/i, '').trim() || st || '—';
+  var tipo = /conclu[ií]d[oa]$|aguardando|comprometido|backlog|pendente/i.test(st) ? 'Espera' : 'Trabalho';
+  var ordem = 50;
+  for (var i = 0; i < ORDEM_PALAVRAS_.length; i++) { if (ORDEM_PALAVRAS_[i][0].test(st)) { ordem = ORDEM_PALAVRAS_[i][1]; break; } }
+  if (cfg && cfg.ordemFase[fase] !== undefined) ordem = cfg.ordemFase[fase];
+  return { fase: fase, ordem: ordem, tipo: tipo };
+}
+
 
 function ss_() { return SpreadsheetApp.getActive(); }
 
@@ -159,6 +175,21 @@ function criarConfiguracao() {
 
 /** Corrige valores padrão antigos que não batem com o Jira. */
 function migrarParametros_(sh) {
+  var bf = BLOCOS.FASES;
+  sh.getRange(HEADER_ROW, bf.col, 1, bf.ncol).setValues([bf.cab]).setBackground('#EA580C').setFontColor('#FFFFFF').setFontWeight('bold');
+  var atuais = lerBloco_(sh, bf);
+  var conhecidos = atuais.map(function (r) { return String(r[0]).trim().toLowerCase(); });
+  // completa a coluna Tipo das linhas antigas
+  atuais.forEach(function (r, i) {
+    if (String(r[3] || '').trim() === '') {
+      var tp = Number(r[2]) >= 9 ? 'Fim' : classificarStatus_(r[0], null).tipo;
+      sh.getRange(HEADER_ROW + 1 + i, bf.col + 3).setValue(tp);
+    }
+  });
+  var novos = FASES_PADRAO.filter(function (r) { return conhecidos.indexOf(r[0].toLowerCase()) < 0; });
+  if (novos.length) sh.getRange(HEADER_ROW + 1 + atuais.length, bf.col, novos.length, bf.ncol).setValues(novos);
+  sh.setColumnWidth(bf.col + 3, 170);
+
   var linhas = lerBloco_(sh, BLOCOS.PARAMS);
   linhas.forEach(function (r, i) {
     if (String(r[0]).trim() === 'Campo Data acordo' && String(r[1]).trim().toLowerCase() === 'data acordo') {
@@ -229,8 +260,11 @@ function getConfig() {
   var fases = {}, ordemFase = {};
   lerBloco_(sh, BLOCOS.FASES).forEach(function (r) {
     var fase = String(r[1] || r[0]).trim();
-    fases[String(r[0]).trim().toLowerCase()] = fase;
     var ord = Number(r[2]) || 50;
+    var t = String(r[3] || '').trim().toLowerCase();
+    var tipo = t.indexOf('esp') === 0 || t.indexOf('fila') === 0 ? 'Espera' : (t.indexOf('fim') === 0 ? 'Fim' : (t ? 'Trabalho' : ''));
+    if (!tipo) tipo = ord >= 9 ? 'Fim' : classificarStatus_(r[0], null).tipo;
+    fases[String(r[0]).trim().toLowerCase()] = { fase: fase, ordem: ord, tipo: tipo };
     if (ordemFase[fase] === undefined || ord < ordemFase[fase]) ordemFase[fase] = ord;
   });
 
