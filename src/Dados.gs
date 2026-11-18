@@ -145,3 +145,18 @@ function parseAtuacao_(txt, nomes) {
     return u ? { usuario: u, nome: nomes[u.toLowerCase()] || u, papel: p.substring(i + 1).trim() } : null;
   }).filter(Boolean);
 }
+
+/** Subtarefas de trabalho para o painel (quem fez o quê em cada issue). */
+function lerSubtarefas_(cfg) {
+  var nomes = {};
+  cfg.time.forEach(function (t) { nomes[t.usuario.toLowerCase()] = t.nome; });
+  return lerTabela_(ABA.SUBT).map(function (r) {
+    var u = String(r['Usuário Jira'] || '');
+    return {
+      k: chaveIssue_(r['Issue']), pai: chaveIssue_(r['Issue pai']), tipo: String(r['Tipo'] || ''),
+      resumo: String(r['Resumo'] || ''), usuario: u, nome: nomes[u.toLowerCase()] || String(r['Quem fez'] || u),
+      doTime: !!nomes[u.toLowerCase()], status: String(r['Status'] || ''), pontos: Number(r['Pontos']) || 0,
+      conclusao: r['Conclusão'] instanceof Date ? fmtISO_(r['Conclusão']) : '', link: String(r['Link'] || '')
+    };
+  });
+}

@@ -400,7 +400,7 @@ function carregar(modo){
 function receber(r){
   carregando(false);
   D = typeof r === 'string' ? JSON.parse(r) : r;
-  if(D) D._assocPai = null;
+  if(D){ D._assocPai = null; enriquecerComSubtarefas(); }
   if(!D){ toast('Sem dados'); return; }
   VISAO = D.modo === 'd1' ? 'd1' : 'agora';
   document.getElementById('vAgora').classList.toggle('on', VISAO==='agora');
@@ -477,6 +477,17 @@ function base(){
   });
 }
 /** A pessoa atuou na issue? (Desenvolvedor ou outro papel, ex.: Documentador) */
+/** Rótulo curto e ícone por papel. */
+function rotuloPapel(p){
+  var t = String(p||'');
+  if(/aceita/i.test(t)) return '🧪 Teste de Aceitação';
+  if(/unit/i.test(t)) return '🧪 Teste Unitário';
+  if(/teste/i.test(t)) return '🧪 '+t;
+  if(/document/i.test(t)) return '📝 '+t;
+  if(/respons/i.test(t)) return '👤 Responsável';
+  if(/codific/i.test(t)) return '💻 '+t;
+  return '🔹 '+t;
+}
 function atuou(x, nome){ return x.dev===nome || (x.atuacao||[]).some(function(p){ return p.nome===nome; }); }
 function papeisDe(x, nome){ var l = (x.atuacao||[]).filter(function(p){ return p.nome===nome; }).map(function(p){ return p.papel; }); if(!l.length && x.dev===nome) l=['Desenvolvedor']; return l; }
 
@@ -633,6 +644,27 @@ function cabTabela(){
   return '<tr><th>Issue</th><th>Resumo</th><th>Dev</th><th>Status / Fase</th><th>Pts</th><th>Início</th><th>Conclusão</th><th>Data acordo</th><th>Dias atuação</th><th>Parado</th><th>Situação</th><th>Labels/KPIs</th><th>Origem</th></tr>';
 }
 // ---------- associadas (subtarefas) ----------
+/** Quem fez subtarefas (Codificação, Documentação, Teste...) passa a constar como atuação na issue principal. */
+function enriquecerComSubtarefas(){
+  var porPai = {}; (D.subtarefas||[]).forEach(function(t){ (porPai[t.pai]=porPai[t.pai]||[]).push(t); });
+  D._subtPai = porPai;
+  D.issues.forEach(function(x){
+    x.atuacao = x.atuacao || [];
+    (porPai[x.k]||[]).forEach(function(t){
+      if(!t.doTime) return;
+      if(!x.atuacao.some(function(p){ return p.usuario.toLowerCase()===t.usuario.toLowerCase() && p.papel===t.tipo; }))
+        x.atuacao.push({usuario:t.usuario, nome:t.nome, papel:t.tipo, sub:true});
+    });
+  });
+}
+function subtDetalhe(k){
+  var l = (D._subtPai||{})[k] || [];
+  if(!l.length) return '';
+  var porPessoa = {}; l.forEach(function(t){ var n = t.nome || '(sem responsável)'; (porPessoa[n]=porPessoa[n]||[]).push(t); });
+  var resumo = Object.keys(porPessoa).map(function(n){ var tipos={}; porPessoa[n].forEach(function(t){ tipos[t.tipo]=(tipos[t.tipo]||0)+1; }); return '<span class="tag" style="background:#0F766E">🧩 '+esc(n)+': '+Object.keys(tipos).map(function(tp){return esc(tp)+(tipos[tp]>1?' ×'+tipos[tp]:'');}).join(', ')+'</span>'; }).join(' ');
+  return '<h3 style="margin-top:14px">🧩 Subtarefas — quem fez o quê ('+l.length+')</h3><div style="margin-bottom:6px">'+resumo+'</div><table><tr><th>Subtarefa</th><th>Tipo</th><th>Resumo</th><th>Quem fez</th><th>Status</th><th>Conclusão</th></tr>'+
+    l.map(function(t){ return '<tr><td><a href="'+esc(t.link)+'" target="_blank"><b>'+esc(t.k)+'</b></a></td><td>'+esc(t.tipo)+'</td><td>'+esc(t.resumo)+'</td><td>'+esc(t.nome||'—')+'</td><td>'+esc(t.status)+'</td><td>'+(t.conclusao?br(t.conclusao):'—')+'</td></tr>'; }).join('')+'</table>';
+}
 function assocComoIssue(a){
   var dpa = a.acordo ? Math.round((d(a.acordo) - hoje())/86400000) : null;
   return Object.assign({}, a, {fase:'🔗 associada de '+a.pai, origem:'Associada de '+a.pai, kpis:{}, diasParaAcordo:dpa, diasParado:0, labels:'', inicio:a.criado, diasAtuacao:''});
@@ -673,7 +705,12 @@ function renderAssoc(ent){
 function linhaTabela(x){
   var tags = D.kpis.filter(function(k){return x.kpis&&x.kpis[k.id];}).map(function(k){return '<span class="tag" style="background:'+k.cor+'">'+esc(k.nome)+'</span>';}).join('');
   if(x.resultadoCR) tags += '<span class="tag" style="background:#64748B">CR: '+esc(x.resultadoCR)+'</span>';
-  (x.atuacao||[]).forEach(function(p){ if(!/desenvolvedor/i.test(p.papel)) tags += '<span class="tag" style="background:#0F766E" title="'+esc(p.usuario)+'">📝 '+esc(p.papel)+': '+esc(p.nome)+'</span>'; });
+  var subPorPessoa = {};
+  (x.atuacao||[]).forEach(function(p){
+    if(p.sub){ if(p.nome!==x.dev) (subPorPessoa[p.nome]=subPorPessoa[p.nome]||[]).push(p.papel); return; }
+    if(!/desenvolvedor/i.test(p.papel)) tags += '<span class="tag" style="background:'+(/teste|aceita|unit/i.test(p.papel)?'#B45309':'#0F766E')+'" title="'+esc(p.papel+' — '+p.usuario)+'">'+esc(rotuloPapel(p.papel))+': '+esc(p.nome)+'</span>';
+  });
+  Object.keys(subPorPessoa).forEach(function(n){ tags += '<span class="tag" style="background:#115E59" title="Subtarefas feitas">🧩 '+esc(n)+': '+esc(subPorPessoa[n].join(', '))+'</span>'; });
   var nAs = x.origem && String(x.origem).indexOf('Associada')===0 ? 0 : ((assocPorPai()[x.k]||[]).length);
   var acordo = br(x.acordo) + (x.reprog>0 ? ' <span class="pill serio" title="Original: '+br(x.acordoOrig)+'">🔁 '+x.reprog+'x</span>' : '');
   return '<tr class="click" onclick="abrirIssue(\''+x.k+'\')"><td><a href="'+esc(x.link)+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(x.k)+'</b></a>'+(nAs?' <span class="pill info" title="'+nAs+' associada(s) — veja no detalhe da issue">🔗 '+nAs+'</span>':'')+'</td><td>'+esc(x.resumo)+'</td><td>'+esc(x.dev)+'</td><td>'+esc(x.status)+'<br><span style="color:var(--muted);font-size:11px">'+esc(x.fase)+'</span></td><td>'+(x.pontos||'')+'</td><td>'+br(x.inicio)+'</td><td>'+br(x.conclusao)+'</td><td>'+acordo+'</td><td>'+(x.diasAtuacao||'')+'</td><td>'+(x.aberta?x.diasParado+'d':'')+'</td><td>'+situacao(x)+'</td><td>'+tags+'</td><td style="font-size:11px;color:var(--muted)">'+esc(x.origem)+'</td></tr>';
@@ -834,7 +871,7 @@ function renderDevs(todas, ent, abertas){
     var outrosE = ent.filter(function(x){ return x.dev!==n && atuou(x,n); }), outrosA = abertas.filter(function(x){ return x.dev!==n && atuou(x,n); });
     var papeisCont = {}; outrosE.concat(outrosA).forEach(function(x){ papeisDe(x,n).forEach(function(pp){ papeisCont[pp]=(papeisCont[pp]||0)+1; }); });
     if(outrosE.length||outrosA.length) LISTAS['dvp_'+i] = {titulo:'📝 '+n+' — atuação em outros papéis', lista:outrosE.concat(outrosA), cor:'#0F766E', alt:{rotA:'Entregues no período ('+outrosE.length+')', rotB:'Em andamento ('+outrosA.length+')', a:outrosE, b:outrosA}};
-    var papTxt = (outrosE.length||outrosA.length) ? '<div class="as-dev" style="color:#0F766E;background:#F0FDFA;border-color:#99F6E4" onclick="event.stopPropagation();abrirLista(\'dvp_'+i+'\')">📝 Também atuou em '+(outrosE.length+outrosA.length)+' issue(s): '+Object.keys(papeisCont).map(function(k){return k+' '+papeisCont[k];}).join(' · ')+' <b>›</b></div>' : '';
+    var papTxt = (outrosE.length||outrosA.length) ? '<div class="as-dev" style="color:#0F766E;background:#F0FDFA;border-color:#99F6E4" onclick="event.stopPropagation();abrirLista(\'dvp_'+i+'\')">📝 Também atuou em '+(outrosE.length+outrosA.length)+' issue(s): '+Object.keys(papeisCont).map(function(k){return rotuloPapel(k)+' '+papeisCont[k];}).join(' · ')+' <b>›</b></div>' : '';
     var pr = pct(e.filter(function(x){return !x.atrasou;}).length, e.length);
     var cor = COR_SERIE[i % COR_SERIE.length];
     LISTAS['dv_'+i] = {titulo:'👤 '+n, lista:e.concat(a), cor:cor, alt:{rotA:'Entregues ('+e.length+')', rotB:'Em andamento ('+a.length+')', a:e, b:a}};
@@ -884,7 +921,7 @@ function abrirIssue(k){
   abrirLista('iss');
   var h = '<div style="margin-top:14px"><h3>Fases da issue</h3><table><tr><th>Fase</th><th>Status Jira</th><th>Início</th><th>Fim</th><th>Dias</th></tr>'+
     (segs.length ? segs.map(function(s){ return '<tr><td><span class="tag" style="background:'+(COR_FASE[s.fase]||'#A78BFA')+'">'+esc(s.fase)+'</span></td><td>'+esc(s.status)+'</td><td>'+(s.ini?new Date(s.ini).toLocaleString('pt-BR'):'—')+'</td><td>'+(s.fim?new Date(s.fim).toLocaleString('pt-BR'):'<span class="pill info">em andamento</span>')+'</td><td>'+s.dias+'</td></tr>'; }).join('') : '<tr><td colspan="5" class="vazio">Sem histórico de fases (issue manual ou ainda não sincronizada).</td></tr>')+
-    '</table>'+assocDetalhe(k)+(x.obs?'<p style="font-size:12px;color:var(--ink2)">📝 '+esc(x.obs)+'</p>':'')+'<p><a class="btn solid" style="text-decoration:none;display:inline-block" href="'+esc(x.link)+'" target="_blank">Abrir no Jira ↗</a></p></div>';
+    '</table>'+subtDetalhe(k)+assocDetalhe(k)+(x.obs?'<p style="font-size:12px;color:var(--ink2)">📝 '+esc(x.obs)+'</p>':'')+'<p><a class="btn solid" style="text-decoration:none;display:inline-block" href="'+esc(x.link)+'" target="_blank">Abrir no Jira ↗</a></p></div>';
   document.getElementById('mTabela').insertAdjacentHTML('afterend', '<div id="detIssue">'+h+'</div>');
 }
 function assocDetalhe(k){

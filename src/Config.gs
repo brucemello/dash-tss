@@ -12,6 +12,7 @@ var ABA = {
   MANUAL: 'Base Manual',
   FASES: 'Fases',
   ASSOC: 'Associadas',
+  SUBT: 'Subtarefas',
   LOG: 'Log',
   LEGADO: 'Entrega por dev'
 };
@@ -32,7 +33,7 @@ var PARAMS_PADRAO = [
   ['JQL adicional', 'issuetype not in subTaskIssueTypes() AND "Story Points" >= 0'],
   ['Meses de histórico', 3],
   ['Campo Desenvolvedor', 'Desenvolvedor'],
-  ['Campos de atuação extra (vírgula)', 'Documentador, Responsável'],
+  ['Campos de atuação extra (vírgula)', 'Documentador, Responsável, Aprovador Teste de Aceitação, Aprovador Teste Unitário'],
   ['Campo Story Points', 'Story Points'],
   ['Campo Data acordo', 'customfield_11039'],
   ['Campo Primeira Data acordo', 'Primeira Data Acordo'],
@@ -184,6 +185,11 @@ function criarConfiguracao() {
 
 /** Corrige valores padrão antigos que não batem com o Jira. */
 function migrarParametros_(sh) {
+  lerBloco_(sh, BLOCOS.PARAMS).forEach(function (r, i) {
+    var v = String(r[1] || '').trim();
+    if (String(r[0]).trim() === 'Campos de atuação extra (vírgula)' && (v === 'Documentador' || v === 'Documentador, Responsável'))
+      sh.getRange(HEADER_ROW + 1 + i, 2).setValue('Documentador, Responsável, Aprovador Teste de Aceitação, Aprovador Teste Unitário');
+  });
   // todos os tipos de issue, sem nenhuma subtarefa (antes aceitava "Associado (Sub-tarefa)")
   lerBloco_(sh, BLOCOS.PARAMS).forEach(function (r, i) {
     if (String(r[0]).trim() === 'JQL adicional') {
@@ -320,7 +326,7 @@ function getConfig() {
     jqlAdicional: String(p['JQL adicional'] || '').trim(),
     mesesHistorico: Math.max(1, Number(p['Meses de histórico']) || 3),
     campoDev: String(p['Campo Desenvolvedor'] || 'Desenvolvedor').trim(),
-    camposExtra: (p['Campos de atuação extra (vírgula)'] === undefined ? 'Documentador, Responsável' : String(p['Campos de atuação extra (vírgula)']))
+    camposExtra: (p['Campos de atuação extra (vírgula)'] === undefined ? 'Documentador, Responsável, Aprovador Teste de Aceitação, Aprovador Teste Unitário' : String(p['Campos de atuação extra (vírgula)']))
       .split(/[,;]/).map(function (x) { return x.trim(); }).filter(String),
     campoPontos: String(p['Campo Story Points'] || 'Story Points').trim(),
     campoAcordo: String(p['Campo Data acordo'] || '').trim(),

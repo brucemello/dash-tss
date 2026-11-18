@@ -8,6 +8,8 @@ var CAB_BASE = ['Issue', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Projeto', 
 
 var CAB_ASSOC = ['Issue', 'Issue pai', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Status', 'Pontos', 'Criado', 'Conclusão', 'Data acordo', 'Link', 'Atuação', 'Responsável'];
 
+var CAB_SUBT = ['Issue', 'Issue pai', 'Tipo', 'Resumo', 'Usuário Jira', 'Quem fez', 'Status', 'Pontos', 'Criado', 'Conclusão', 'Link'];
+
 var CAB_FASES = ['Issue', 'Usuário Jira', 'Status', 'Fase', 'Ordem', 'Início', 'Fim', 'Dias', 'Em aberto?'];
 
 function sincronizarJira() {
@@ -92,6 +94,24 @@ function sincronizarJira() {
       if (assoc.length) shA.getRange(2, 8, assoc.length, 3).setNumberFormat('dd/MM/yyyy');
       log_('Sync', assoc.length + ' associada(s) (subtarefas) lidas como informação extra');
     } catch (e) { log_('Aviso', 'Associadas não lidas: ' + e.message); }
+
+    // Subtarefas de trabalho (quem codificou, documentou, testou)
+    try {
+      var chavesPai = linhasBase.map(function (l) { return l[0]; });
+      var subt = buscarSubtarefas_(cfg, ids, chavesPai).map(function (it) {
+        var f = it.fields || {};
+        var pessoa = f.assignee || (ids.dev ? f[ids.dev] : null);
+        if (Array.isArray(pessoa)) pessoa = pessoa[0];
+        var u = pessoa ? (pessoa.name || pessoa.key || '') : '';
+        return [it.key, (f.parent && f.parent.key) || '', (f.issuetype && f.issuetype.name) || '', f.summary || '', u,
+          nomes[String(u).toLowerCase()] || (pessoa && pessoa.displayName) || u, (f.status && f.status.name) || '',
+          ids.pontos ? (Number(valorCampo_(f[ids.pontos])) || 0) : 0,
+          parseJiraDate_(f.created) || '', parseJiraDate_(f.resolutiondate) || '', cfg.jiraUrl + '/browse/' + it.key];
+      });
+      var shS = escreverTabela_(ABA.SUBT, CAB_SUBT, subt, '#0F766E');
+      if (subt.length) shS.getRange(2, 9, subt.length, 2).setNumberFormat('dd/MM/yyyy');
+      log_('Sync', subt.length + ' subtarefa(s) de trabalho lidas');
+    } catch (e) { log_('Aviso', 'Subtarefas não lidas: ' + e.message); }
 
     garantirBaseManual_(cfg);
     PropertiesService.getScriptProperties().setProperty('ULTIMA_SYNC', new Date().toISOString());

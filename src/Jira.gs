@@ -205,3 +205,27 @@ function nomeJqlCampo_(e) {
   if (/^customfield_\d+$/.test(e.id)) return 'cf[' + e.id.split('_')[1] + ']';
   return '"' + String(e.nome).replace(/"/g, '\\"') + '"';
 }
+
+/**
+ * Subtarefas de trabalho (Codificação, Documentação, Teste Integrado...) das issues do Dash.
+ * O Responsável da subtarefa é quem executou: vira atuação da pessoa na issue principal.
+ */
+function buscarSubtarefas_(cfg, ids, chavesPai) {
+  var q = function (s) { return '"' + String(s).replace(/"/g, '\\"') + '"'; };
+  var campos = ['summary', 'status', 'parent', 'issuetype', 'created', 'resolutiondate', 'assignee'];
+  [ids.dev, ids.pontos].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
+  var todas = [];
+  for (var i = 0; i < chavesPai.length; i += 60) {
+    var lote = chavesPai.slice(i, i + 60);
+    var jql = 'parent in (' + lote.join(', ') + ') AND issuetype != ' + q(TIPO_ASSOCIADA);
+    var startAt = 0, total = 1;
+    while (startAt < total) {
+      var r = jiraGet_('/rest/api/2/search', { jql: jql, startAt: startAt, maxResults: 100, fields: campos.join(',') });
+      total = r.total || 0;
+      todas = todas.concat(r.issues || []);
+      startAt += (r.issues || []).length;
+      if (!(r.issues || []).length) break;
+    }
+  }
+  return todas;
+}

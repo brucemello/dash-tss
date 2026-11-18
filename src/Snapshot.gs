@@ -45,7 +45,8 @@ function montarPayload_(modo, dataRef) {
       return o;
     }),
     fases: lerFases_(cfg),
-    associadas: lerAssociadas_(cfg)
+    associadas: lerAssociadas_(cfg),
+    subtarefas: lerSubtarefas_(cfg)
   };
 }
 
