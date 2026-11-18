@@ -1263,7 +1263,7 @@ function prepararSprints(){
   if(!l.length){ sel.innerHTML = '<option value="">Nenhuma sprint encontrada nas issues</option>'; SP_ATUAL = null; return; }
   var salvo = null; try { salvo = localStorage.getItem('dashTssSprint'); } catch(e){}
   if(!SP_ATUAL || !l.some(function(s){return s.id===SP_ATUAL;})) SP_ATUAL = (salvo && l.some(function(s){return s.id===salvo;})) ? salvo : l[0].id;
-  sel.innerHTML = l.map(function(s){ return '<option value="'+esc(s.id)+'"'+(s.id===SP_ATUAL?' selected':'')+'>'+(s.acompanhada?'⭐ ':'')+esc(s.nome)+' · '+(s.estado==='ACTIVE'?'ativa':s.estado==='FUTURE'?'planejada':'encerrada')+' · '+s._n+' issue(s)</option>'; }).join('');
+  sel.innerHTML = l.map(function(s){ return '<option value="'+esc(s.id)+'"'+(s.id===SP_ATUAL?' selected':'')+'>'+(s.acompanhada?'⭐ ':'')+esc(s.nome)+' · '+(s.estado==='ACTIVE'?'ativa':s.estado==='FUTURE'?'planejada':'encerrada')+' · '+s._n+' issue(s) no Dash'+(s.acompanhada?'':' (não acompanhada)')+'</option>'; }).join('');
 }
 
 function issuesDaSprint(id){ return base().filter(function(x){ return (x.sprints||[]).indexOf(id)>=0; }); }
@@ -1296,13 +1296,16 @@ function renderSprint(){
   var totP = l.reduce(function(s,x){return s+peso(x);},0), concP = concl.reduce(function(s,x){return s+peso(x);},0);
   var pctConc = pct(concP, totP);
   var pctTempo = ini && fim ? Math.max(0, Math.min(100, Math.round(((Math.min(agora, fimReal||fim)) - ini)/(fim-ini)*100))) : 0;
-  var ritmo = sp.estado==='CLOSED' ? (pctConc>=100?'ok':'crit') : (pctConc >= pctTempo-10 ? 'ok' : (pctConc >= pctTempo-25 ? 'warn' : 'crit'));
-  var txtRitmo = sp.estado==='CLOSED' ? (pctConc>=100?'✅ Sprint concluída com todo o escopo':'⚠️ Encerrou com '+(100-pctConc)+'% do escopo pendente') :
+  var naoIniciada = sp.estado==='FUTURE' || (ini && agora < ini);
+  if(naoIniciada) pctTempo = 0;
+  var ritmo = naoIniciada ? 'info' : sp.estado==='CLOSED' ? (pctConc>=100?'ok':'crit') : (pctConc >= pctTempo-10 ? 'ok' : (pctConc >= pctTempo-25 ? 'warn' : 'crit'));
+  var txtRitmo = naoIniciada ? '🗓️ Sprint planejada — ainda não iniciada no Jira'+(ini?' (início previsto '+ini.toLocaleDateString('pt-BR')+')':'') : sp.estado==='CLOSED' ? (pctConc>=100?'✅ Sprint concluída com todo o escopo':'⚠️ Encerrou com '+(100-pctConc)+'% do escopo pendente') :
     ritmo==='ok' ? '✅ No ritmo: '+pctConc+'% entregue com '+pctTempo+'% do tempo' : ritmo==='warn' ? '⚠️ Atenção: '+pctConc+'% entregue com '+pctTempo+'% do tempo' : '🔴 Atrasada: '+pctConc+'% entregue com '+pctTempo+'% do tempo';
   document.getElementById('spProgresso').innerHTML =
     '<div class="sp-barra"><div class="sp-lbl">⏱️ Tempo decorrido</div><div class="sp-trilho"><i style="width:'+pctTempo+'%;background:#A8A3BD"></i></div><b>'+pctTempo+'%</b></div>'+
     '<div class="sp-barra"><div class="sp-lbl">✅ Escopo entregue ('+unid+')</div><div class="sp-trilho"><i style="width:'+pctConc+'%;background:'+(ritmo==='ok'?'#10B981':ritmo==='warn'?'#F59E0B':'#EF4444')+'"></i></div><b>'+pctConc+'%</b></div>'+
-    '<div class="pill '+ritmo+'" style="margin-top:6px;font-size:12px;padding:4px 12px">'+txtRitmo+'</div>';
+    '<div class="pill '+ritmo+'" style="margin-top:6px;font-size:12px;padding:4px 12px">'+txtRitmo+'</div>'+
+    (sp.acompanhada ? '' : '<div class="nota" style="margin:10px 0 0">⚠️ Esta sprint <b>não está acompanhada</b>: aparecem só as '+l.length+' issue(s) que já estavam no Dash (time, período e Story Points). Issues sem desenvolvedor, sem pontos ou antigas ficam de fora. Clique em <b>⭐ Acompanhar esta sprint</b> para trazer <b>todas</b> as issues dela.</div>');
 
   var cards = [
     {ico:'📦',rot:'Escopo da sprint',val:l.length,det:totP+' '+unid+(adicionadas.length?' · '+adicionadas.length+' adicionada(s) depois':''),cor:'#7C3AED',click:registrar('sp1','📦 Escopo da sprint '+sp.nome,l,'#7C3AED')},
@@ -1342,7 +1345,7 @@ function renderSprint(){
 
   // analistas
   var porDev = {};
-  l.forEach(function(x){ var o = porDev[x.dev] = porDev[x.dev] || {l:[], outros:[]}; o.l.push(x); });
+  l.forEach(function(x){ var nd = (!x.dev || x.dev==='(sem dev)') ? '⚪ Sem desenvolvedor' : x.dev; var o = porDev[nd] = porDev[nd] || {l:[], outros:[]}; o.l.push(x); });
   l.forEach(function(x){ (x.atuacao||[]).forEach(function(p){ if(p.nome!==x.dev && D.time.some(function(t){return t.nome===p.nome;})){ var o = porDev[p.nome] = porDev[p.nome] || {l:[], outros:[]}; if(o.outros.indexOf(x)<0) o.outros.push(x); } }); });
   var devs = Object.keys(porDev).sort(function(a,b){ return porDev[b].l.length-porDev[a].l.length; });
   document.getElementById('spDevs').innerHTML = '<tr><th>Analista</th><th style="text-align:center">Issues</th><th style="text-align:center">'+unid+'</th><th style="text-align:center">Concl.</th><th style="width:110px">Progresso</th><th style="text-align:center">Andamento</th><th style="text-align:center">🚩</th><th style="text-align:center">🔴</th><th style="text-align:center" title="Atuou em outros papéis (QA, documentação, subtarefas)">Apoio</th></tr>'+
