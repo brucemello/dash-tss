@@ -9,6 +9,7 @@ function onOpen() {
     .addItem('⚙️ Criar/atualizar configuração', 'menuConfig_')
     .addItem('🔑 Definir token do Jira', 'definirTokenJira')
     .addItem('👥 Buscar time e e-mails no Tempo', 'menuTempo_')
+    .addItem('🔍 Diagnosticar issue (por que não aparece?)', 'menuDiagnostico_')
     .addItem('🧾 Listar campos do Jira', 'listarCamposJira')
     .addItem('📥 Importar aba "Entrega por dev"', 'menuImportar_')
     .addSeparator()

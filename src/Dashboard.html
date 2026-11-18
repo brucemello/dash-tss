@@ -296,6 +296,14 @@
       <div class="tbl" style="max-height:300px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:12px"><table id="tTime"></table></div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">A lista é atualizada sozinha todo dia útil antes dos alertas. Usuários que não existem no Jira são desativados para não quebrar a busca.</div>
     </div>
+    <div class="card" style="margin-bottom:14px">
+      <h3>🔍 Diagnóstico — por que uma issue não aparece?</h3>
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <textarea id="dgIssues" rows="3" placeholder="Cole uma ou mais issues: DSERTSS1-42090, DSERTSS1-39264…" style="flex:1;min-width:280px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:13px inherit;background:#FBFAFF"></textarea>
+        <button class="btn solid" onclick="diagnosticar()">🔍 Diagnosticar</button>
+      </div>
+      <div id="dgResultado" style="margin-top:10px"></div>
+    </div>
     <div class="nota">💡 Aqui você define os <b>projetos</b> buscados no Jira e as <b>labels</b> que viram KPI. Cada label nova ganha um card automático em “Indicadores por label”. Time, e-mails, prazos dos alertas e mapeamento de status → fase ficam na aba <b>⚙️ Configuração</b> da planilha.</div>
     <div class="grid duas">
       <div class="card">
@@ -908,6 +916,15 @@ function buscarTimeTempo(){
   chamar('buscarTimeTempoPainel', [ids], function(r){ carregando(false);
     document.getElementById('tMsg').innerHTML = '<div class="nota" style="margin:0">'+esc((r&&r.mensagem)||'Concluído').split(' | ').join('<br>')+'</div>';
     chamar('getConfigPainel', [], function(c){ if(c){ CFG.time = c.time; CFG.teamIdsTempo = c.teamIdsTempo; desenharTime(); desenharPronto(c.prontidao); } });
+  });
+}
+function diagnosticar(){
+  var t = document.getElementById('dgIssues').value;
+  if(!t.trim()){ toast('Cole ao menos uma issue'); return; }
+  carregando(true,'Consultando as issues no Jira…');
+  chamar('diagnosticarIssues', [t], function(res){ carregando(false);
+    document.getElementById('dgResultado').innerHTML = '<div class="tbl" style="border:1px solid var(--line);border-radius:12px;overflow:auto"><table><tr><th>Issue</th><th>Entra?</th><th>Motivo</th><th>Desenvolvedor (Jira)</th><th>Responsável</th><th>SP</th><th>Tipo</th><th>Status</th><th>Resolvida</th></tr>'+
+      (res||[]).map(function(r){ var x=r.detalhes||{}; return '<tr><td><a href="'+esc((D&&D.params.jiraUrl||'')+'/browse/'+r.issue)+'" target="_blank"><b>'+esc(r.issue)+'</b></a><br><small style="color:var(--muted)">'+esc((x.resumo||'').substring(0,70))+'</small></td><td>'+(r.entra?'<span class="pill ok">SIM</span>':'<span class="pill crit">NÃO</span>')+'</td><td>'+r.motivos.map(esc).join('<br>')+'</td><td>'+esc(x.desenvolvedor||'')+'</td><td>'+esc(x.responsavel||'')+'</td><td>'+esc(x.storyPoints==null?'':x.storyPoints)+'</td><td>'+esc(x.tipo||'')+'</td><td>'+esc(x.status||'')+'</td><td>'+esc(x.resolvido||'')+'</td></tr>'; }).join('')+'</table></div>';
   });
 }
 function addKpi(){ CFG.kpis.push({labels:'',nome:'',cor:COR_SERIE[CFG.kpis.length%8],ativo:true}); desenharConfig(); }
