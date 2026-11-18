@@ -27,6 +27,8 @@ function definirTokenJira() {
 }
 
 function jiraGet_(path, params) {
+  // A busca vai por POST (JQL no corpo): JQL longa estoura o limite de tamanho de URL do UrlFetch
+  if (path === '/rest/api/2/search' && params) return jiraSearchPost_(params);
   var cfg = getConfig();
   var url = cfg.jiraUrl + path;
   if (params) {
@@ -51,6 +53,30 @@ function jiraGet_(path, params) {
       var txt = resp.getContentText();
       throw new Error('Jira ' + code + ': ' + txt.substring(0, 400));
     }
+    return JSON.parse(resp.getContentText());
+  }
+}
+
+/** POST /rest/api/2/search — mesmos parâmetros da versão GET. */
+function jiraSearchPost_(params) {
+  var cfg = getConfig();
+  var corpo = { jql: params.jql, startAt: Number(params.startAt) || 0, maxResults: params.maxResults === undefined ? 50 : Number(params.maxResults) };
+  if (params.fields) corpo.fields = String(params.fields).split(',').map(function (x) { return x.trim(); }).filter(String);
+  if (params.expand) corpo.expand = String(params.expand).split(',').map(function (x) { return x.trim(); }).filter(String);
+  var tentativas = 0;
+  while (true) {
+    var resp = UrlFetchApp.fetch(cfg.jiraUrl + '/rest/api/2/search', {
+      method: 'post', contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + getJiraToken_(), Accept: 'application/json' },
+      payload: JSON.stringify(corpo), muteHttpExceptions: true
+    });
+    var code = resp.getResponseCode();
+    if (code === 429 || code >= 500) {
+      if (++tentativas > 3) throw new Error('Jira indisponível (' + code + ')');
+      Utilities.sleep(1500 * tentativas);
+      continue;
+    }
+    if (code >= 300) throw new Error('Jira ' + code + ': ' + resp.getContentText().substring(0, 400));
     return JSON.parse(resp.getContentText());
   }
 }
