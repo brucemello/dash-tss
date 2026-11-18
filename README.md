@@ -43,6 +43,13 @@ Bloco **📬 Destinatários** na aba ⚙️ Configuração (ou na aba Configura�
 
 O painel tem botões para enviar um e-mail de teste e um checklist **Pronto para a TL usar?**.
 
+## Atuação: Desenvolvedor, Documentador e Responsável
+
+Uma pessoa do time pode atuar numa issue como **Desenvolvedor**, **Documentador** ou **Responsável** (parâmetro *Campos de atuação extra*). A busca traz a issue se alguém do time estiver em qualquer um desses papéis. A coluna **Atuação** da Base Jira guarda quem atuou e em qual papel.
+- Os indicadores continuam pelo **Desenvolvedor** (ou pelo Responsável, quando o Desenvolvedor está vazio).
+- Filtrar por um dev mostra tudo em que ele atuou; o card dele mostra "📝 Também atuou em N issue(s)", clicável.
+- Nas tabelas, o papel aparece como etiqueta (ex.: "📝 Documentador: Lucas").
+
 ## Associadas (subtarefas) — informação extra
 
 As subtarefas **"Associado (Sub-tarefa)"** não entram nos indicadores, mas são buscadas à parte (mesmos projetos e período, sem filtro de dev) e gravadas na aba **Associadas**. No painel:

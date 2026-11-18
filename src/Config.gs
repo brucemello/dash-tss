@@ -32,6 +32,7 @@ var PARAMS_PADRAO = [
   ['JQL adicional', 'issuetype not in subTaskIssueTypes() AND "Story Points" >= 0'],
   ['Meses de histórico', 3],
   ['Campo Desenvolvedor', 'Desenvolvedor'],
+  ['Campos de atuação extra (vírgula)', 'Documentador, Responsável'],
   ['Campo Story Points', 'Story Points'],
   ['Campo Data acordo', 'customfield_11039'],
   ['Campo Primeira Data acordo', 'Primeira Data Acordo'],
@@ -319,6 +320,8 @@ function getConfig() {
     jqlAdicional: String(p['JQL adicional'] || '').trim(),
     mesesHistorico: Math.max(1, Number(p['Meses de histórico']) || 3),
     campoDev: String(p['Campo Desenvolvedor'] || 'Desenvolvedor').trim(),
+    camposExtra: (p['Campos de atuação extra (vírgula)'] === undefined ? 'Documentador, Responsável' : String(p['Campos de atuação extra (vírgula)']))
+      .split(/[,;]/).map(function (x) { return x.trim(); }).filter(String),
     campoPontos: String(p['Campo Story Points'] || 'Story Points').trim(),
     campoAcordo: String(p['Campo Data acordo'] || '').trim(),
     campoPrimeiraAcordo: String(p['Campo Primeira Data acordo'] || '').trim(),

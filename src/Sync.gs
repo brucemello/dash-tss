@@ -4,9 +4,9 @@
 
 var CAB_BASE = ['Issue', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Projeto', 'Tipo', 'Status', 'Fase',
   'Pontos', 'Criado', 'Início', 'Conclusão', 'Data acordo', 'Data acordo original', 'Qtd reprogramações',
-  'Reprogramada?', 'Atrasou?', 'Dias atuação', 'Dias parado', 'Última movimentação', 'Labels', 'Link'];
+  'Reprogramada?', 'Atrasou?', 'Dias atuação', 'Dias parado', 'Última movimentação', 'Labels', 'Link', 'Atuação'];
 
-var CAB_ASSOC = ['Issue', 'Issue pai', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Status', 'Pontos', 'Criado', 'Conclusão', 'Data acordo', 'Link'];
+var CAB_ASSOC = ['Issue', 'Issue pai', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Status', 'Pontos', 'Criado', 'Conclusão', 'Data acordo', 'Link', 'Atuação', 'Responsável'];
 
 var CAB_FASES = ['Issue', 'Usuário Jira', 'Status', 'Fase', 'Ordem', 'Início', 'Fim', 'Dias', 'Em aberto?'];
 
@@ -25,6 +25,10 @@ function sincronizarJira() {
       acordo: resolverPrimeiro_([cfg.campoAcordo, 'customfield_11039', 'Data Acordo Entrega', 'Data acordo'], mapa),
       primeiraAcordo: resolverPrimeiro_([cfg.campoPrimeiraAcordo, 'Primeira Data Acordo'], mapa)
     };
+    ids.extras = cfg.camposExtra.map(function (n) { return { nome: n, id: resolverCampo_(n, mapa) }; })
+      .filter(function (e) { if (!e.id) log_('Aviso', 'Campo de atuação "' + e.nome + '" não encontrado no Jira; ignorado.'); return !!e.id; });
+    cfg.camposExtraValidos = ids.extras.map(function (e) { return e.nome; });
+    cfg.camposExtraJql = ids.extras.map(nomeJqlCampo_);
     if (!ids.acordo) { ids.acordo = 'duedate'; log_('Aviso', 'Campo "' + cfg.campoAcordo + '" não encontrado; usando Data limite (duedate).'); }
     if (!ids.dev) log_('Aviso', 'Campo "' + cfg.campoDev + '" não encontrado; usando Responsável (assignee).');
 
@@ -48,7 +52,7 @@ function sincronizarJira() {
         r.pontos, r.criado, r.inicio || '', r.conclusao || '', r.acordo || '', r.acordoOriginal || '',
         r.qtdReprog, r.qtdReprog > 0 ? 'SIM' : 'NÃO', r.atrasou ? 'SIM' : 'NÃO',
         r.diasAtuacao, r.diasParado, r.ultimaMov || '', r.labels.join(', '),
-        cfg.jiraUrl + '/browse/' + r.chave].concat(kpiVals));
+        cfg.jiraUrl + '/browse/' + r.chave, textoAtuacao_(papeisIssue_(it.fields || {}, cfg, ids))].concat(kpiVals));
       r.segmentos.forEach(function (s) {
         linhasFases.push([r.chave, r.usuario, s.status, s.fase, classificarStatus_(s.status, cfg).ordem,
           s.inicio, s.fim || '', Math.round(((s.fim || new Date()) - s.inicio) / 864000) / 100,
@@ -65,17 +69,24 @@ function sincronizarJira() {
 
     // Associadas (subtarefas) como informação extra
     try {
-      var assoc = buscarAssociadas_(cfg, ids).map(function (it) {
+      var chavesBase = {};
+      linhasBase.forEach(function (l) { chavesBase[l[0]] = true; });
+      var assoc = [];
+      buscarAssociadas_(cfg, ids).forEach(function (it) {
         var f = it.fields || {};
-        var devObj = ids.dev ? f[ids.dev] : null;
-        if (Array.isArray(devObj)) devObj = devObj[0];
-        if (!devObj) devObj = f.assignee;
-        var usuario = devObj ? (devObj.name || devObj.key || devObj.value || '') : '';
-        return [it.key, (f.parent && f.parent.key) || '', f.summary || '', usuario,
-          nomes[String(usuario).toLowerCase()] || (devObj && devObj.displayName) || usuario,
+        var papeis = papeisIssue_(f, cfg, ids);
+        var pai = (f.parent && f.parent.key) || '';
+        var doTime = papeis.some(function (p) { return nomes[p.usuario.toLowerCase()]; });
+        // muitas associadas são tickets ligados: guarda só as das issues do Dash ou com alguém do time atuando
+        if (!chavesBase[pai] && !doTime) return;
+        var principal = papeis.filter(function (p) { return nomes[p.usuario.toLowerCase()]; })[0] || papeis[0];
+        var usuario = principal ? principal.usuario : '';
+        assoc.push([it.key, pai, f.summary || '', usuario,
+          nomes[String(usuario).toLowerCase()] || usuario,
           (f.status && f.status.name) || '', ids.pontos ? (Number(valorCampo_(f[ids.pontos])) || 0) : 0,
           parseJiraDate_(f.created) || '', parseJiraDate_(f.resolutiondate) || '',
-          soData_(parseJiraDate_(valorCampo_(f[ids.acordo]))) || '', cfg.jiraUrl + '/browse/' + it.key];
+          soData_(parseJiraDate_(valorCampo_(f[ids.acordo]))) || '', cfg.jiraUrl + '/browse/' + it.key,
+          textoAtuacao_(papeis), (f.assignee && f.assignee.name) || '']);
       });
       var shA = escreverTabela_(ABA.ASSOC, CAB_ASSOC, assoc, '#0EA5E9');
       if (assoc.length) shA.getRange(2, 8, assoc.length, 3).setNumberFormat('dd/MM/yyyy');

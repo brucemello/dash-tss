@@ -434,7 +434,7 @@ function infoVisao(){
 
 function prepararFiltros(){
   var sDev = document.getElementById('fDev'), sProj = document.getElementById('fProj');
-  var devs = {}; D.issues.forEach(function(x){ devs[x.dev]=1; });
+  var devs = {}; D.issues.forEach(function(x){ devs[x.dev]=1; (x.atuacao||[]).forEach(function(p){ if(D.time.some(function(t){return t.nome===p.nome;})) devs[p.nome]=1; }); });
   D.time.forEach(function(t){ devs[t.nome]=1; });
   sDev.innerHTML = '<option value="">Todos</option>' + Object.keys(devs).filter(Boolean).sort().map(function(n){return '<option>'+esc(n)+'</option>';}).join('');
   var proj = {}; D.issues.forEach(function(x){ if(x.projeto) proj[x.projeto]=1; });
@@ -470,12 +470,16 @@ function base(){
   var dev = document.getElementById('fDev').value, proj = document.getElementById('fProj').value;
   var q = document.getElementById('fBusca').value.trim().toLowerCase();
   return D.issues.filter(function(x){
-    if(dev && x.dev!==dev) return false;
+    if(dev && !atuou(x, dev)) return false;
     if(proj && x.projeto!==proj) return false;
     if(q && (x.k+' '+x.resumo+' '+x.labels).toLowerCase().indexOf(q)<0) return false;
     return true;
   });
 }
+/** A pessoa atuou na issue? (Desenvolvedor ou outro papel, ex.: Documentador) */
+function atuou(x, nome){ return x.dev===nome || (x.atuacao||[]).some(function(p){ return p.nome===nome; }); }
+function papeisDe(x, nome){ var l = (x.atuacao||[]).filter(function(p){ return p.nome===nome; }).map(function(p){ return p.papel; }); if(!l.length && x.dev===nome) l=['Desenvolvedor']; return l; }
+
 function entregues(lista){
   var r = intervalo();
   return lista.filter(function(x){
@@ -636,7 +640,7 @@ function assocComoIssue(a){
 function assocFiltradas(){
   var dev = document.getElementById('fDev').value, q = document.getElementById('fBusca').value.trim().toLowerCase();
   return (D.associadas||[]).filter(function(a){
-    if(dev && a.dev!==dev) return false;
+    if(dev && !atuou(a, dev)) return false;
     if(q && (a.k+' '+a.pai+' '+a.resumo).toLowerCase().indexOf(q)<0) return false;
     return true;
   });
@@ -669,6 +673,7 @@ function renderAssoc(ent){
 function linhaTabela(x){
   var tags = D.kpis.filter(function(k){return x.kpis&&x.kpis[k.id];}).map(function(k){return '<span class="tag" style="background:'+k.cor+'">'+esc(k.nome)+'</span>';}).join('');
   if(x.resultadoCR) tags += '<span class="tag" style="background:#64748B">CR: '+esc(x.resultadoCR)+'</span>';
+  (x.atuacao||[]).forEach(function(p){ if(!/desenvolvedor/i.test(p.papel)) tags += '<span class="tag" style="background:#0F766E" title="'+esc(p.usuario)+'">📝 '+esc(p.papel)+': '+esc(p.nome)+'</span>'; });
   var nAs = x.origem && String(x.origem).indexOf('Associada')===0 ? 0 : ((assocPorPai()[x.k]||[]).length);
   var acordo = br(x.acordo) + (x.reprog>0 ? ' <span class="pill serio" title="Original: '+br(x.acordoOrig)+'">🔁 '+x.reprog+'x</span>' : '');
   return '<tr class="click" onclick="abrirIssue(\''+x.k+'\')"><td><a href="'+esc(x.link)+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(x.k)+'</b></a>'+(nAs?' <span class="pill info" title="'+nAs+' associada(s) — veja no detalhe da issue">🔗 '+nAs+'</span>':'')+'</td><td>'+esc(x.resumo)+'</td><td>'+esc(x.dev)+'</td><td>'+esc(x.status)+'<br><span style="color:var(--muted);font-size:11px">'+esc(x.fase)+'</span></td><td>'+(x.pontos||'')+'</td><td>'+br(x.inicio)+'</td><td>'+br(x.conclusao)+'</td><td>'+acordo+'</td><td>'+(x.diasAtuacao||'')+'</td><td>'+(x.aberta?x.diasParado+'d':'')+'</td><td>'+situacao(x)+'</td><td>'+tags+'</td><td style="font-size:11px;color:var(--muted)">'+esc(x.origem)+'</td></tr>';
@@ -821,22 +826,26 @@ function desenharCiclo(){
 function COR_ETAPA_ORD(f){ var s = D.fases.filter(function(z){return z.fase===f;})[0]; return s ? s.ordem : 50; }
 
 function renderDevs(todas, ent, abertas){
-  var nomes = {}; todas.forEach(function(x){nomes[x.dev]=1;}); D.time.forEach(function(t){nomes[t.nome]=1;}); (D.associadas||[]).forEach(function(z){ if(z.dev) nomes[z.dev]=1; });
+  var nomes = {}; todas.forEach(function(x){nomes[x.dev]=1;}); D.time.forEach(function(t){nomes[t.nome]=1;}); (D.associadas||[]).forEach(function(z){ if(z.dev) nomes[z.dev]=1; }); todas.forEach(function(x){ (x.atuacao||[]).forEach(function(p){ if(D.time.some(function(t){return t.nome===p.nome;})) nomes[p.nome]=1; }); });
   var fDev = document.getElementById('fDev').value;
   var lista = Object.keys(nomes).filter(function(n){return n && (!fDev || n===fDev);}).sort();
   document.getElementById('cardsDevs').innerHTML = lista.map(function(n,i){
     var e = ent.filter(function(x){return x.dev===n;}), a = abertas.filter(function(x){return x.dev===n;});
+    var outrosE = ent.filter(function(x){ return x.dev!==n && atuou(x,n); }), outrosA = abertas.filter(function(x){ return x.dev!==n && atuou(x,n); });
+    var papeisCont = {}; outrosE.concat(outrosA).forEach(function(x){ papeisDe(x,n).forEach(function(pp){ papeisCont[pp]=(papeisCont[pp]||0)+1; }); });
+    if(outrosE.length||outrosA.length) LISTAS['dvp_'+i] = {titulo:'📝 '+n+' — atuação em outros papéis', lista:outrosE.concat(outrosA), cor:'#0F766E', alt:{rotA:'Entregues no período ('+outrosE.length+')', rotB:'Em andamento ('+outrosA.length+')', a:outrosE, b:outrosA}};
+    var papTxt = (outrosE.length||outrosA.length) ? '<div class="as-dev" style="color:#0F766E;background:#F0FDFA;border-color:#99F6E4" onclick="event.stopPropagation();abrirLista(\'dvp_'+i+'\')">📝 Também atuou em '+(outrosE.length+outrosA.length)+' issue(s): '+Object.keys(papeisCont).map(function(k){return k+' '+papeisCont[k];}).join(' · ')+' <b>›</b></div>' : '';
     var pr = pct(e.filter(function(x){return !x.atrasou;}).length, e.length);
     var cor = COR_SERIE[i % COR_SERIE.length];
     LISTAS['dv_'+i] = {titulo:'👤 '+n, lista:e.concat(a), cor:cor, alt:{rotA:'Entregues ('+e.length+')', rotB:'Em andamento ('+a.length+')', a:e, b:a}};
     var kp = D.kpis.map(function(k){ var p=pct(e.filter(function(x){return x.kpis&&x.kpis[k.id];}).length, e.length); return '<div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-top:5px"><span style="width:90px;color:var(--ink2)">'+esc(k.nome)+'</span><div style="flex:1;height:7px;background:#F0EDFA;border-radius:9px;overflow:hidden"><i style="display:block;height:100%;width:'+p+'%;background:'+k.cor+'"></i></div><b style="width:34px;text-align:right">'+p+'%</b></div>'; }).join('');
     var alerta = a.filter(function(x){return x.diasParaAcordo!=null && x.diasParaAcordo<0;}).length;
-    var rI = intervalo(), asDev = (D.associadas||[]).filter(function(z){ if(z.dev!==n || !z.conclusao) return false; var c=d(z.conclusao); return (!rI.ini||c>=rI.ini)&&(!rI.fim||c<=rI.fim); });
-    var asAbertas = (D.associadas||[]).filter(function(z){ return z.dev===n && z.aberta; });
+    var rI = intervalo(), asDev = (D.associadas||[]).filter(function(z){ if(!atuou(z,n) || !z.conclusao) return false; var c=d(z.conclusao); return (!rI.ini||c>=rI.ini)&&(!rI.fim||c<=rI.fim); });
+    var asAbertas = (D.associadas||[]).filter(function(z){ return atuou(z,n) && z.aberta; });
     LISTAS['dva_'+i] = {titulo:'🔗 Associadas de '+n, lista:asDev.concat(asAbertas).map(assocComoIssue), cor:'#0EA5E9', alt:{rotA:'Entregues no período ('+asDev.length+')', rotB:'Em andamento ('+asAbertas.length+')', a:asDev.map(assocComoIssue), b:asAbertas.map(assocComoIssue)}};
     var asTxt = (asDev.length||asAbertas.length) ? '<div class="as-dev" onclick="event.stopPropagation();abrirLista(\'dva_'+i+'\')" title="Ver associadas (fora dos KPIs)">🔗 '+asDev.length+' associada(s) entregue(s) · '+asDev.reduce(function(s,z){return s+(+z.pontos||0);},0)+' pts · '+asAbertas.length+' aberta(s) <b>›</b></div>' : '';
     return '<div class="card dev" onclick="abrirLista(\'dv_'+i+'\')"><div class="devtop"><div class="av" style="background:'+cor+'">'+iniciais(n)+'</div><div><b>'+esc(n)+'</b><div style="font-size:11px;color:var(--muted)">'+(alerta?'<span class="pill crit">'+alerta+' vencida(s)</span>':'<span class="pill ok">em dia</span>')+'</div></div></div>'+
-      '<div class="mini"><div><b>'+e.length+'</b><span>entregas</span></div><div><b>'+pr+'%</b><span>no prazo</span></div><div><b>'+a.length+'</b><span>em andamento</span></div></div>'+kp+asTxt+'</div>';
+      '<div class="mini"><div><b>'+e.length+'</b><span>entregas</span></div><div><b>'+pr+'%</b><span>no prazo</span></div><div><b>'+a.length+'</b><span>em andamento</span></div></div>'+kp+papTxt+asTxt+'</div>';
   }).join('') || '<div class="card vazio">Sem desenvolvedores.</div>';
 }
 
@@ -881,8 +890,8 @@ function abrirIssue(k){
 function assocDetalhe(k){
   var l = assocPorPai()[k] || [];
   if(!l.length) return '';
-  return '<h3 style="margin-top:14px">🔗 Associadas desta issue ('+l.length+') <span style="font-size:11px;color:var(--muted);font-weight:500">informação extra</span></h3><table><tr><th>Associada</th><th>Resumo</th><th>Dev</th><th>Status</th><th>Pts</th><th>Data acordo</th><th>Conclusão</th></tr>'+
-    l.map(function(a){ return '<tr><td><a href="'+esc(a.link)+'" target="_blank"><b>'+esc(a.k)+'</b></a></td><td>'+esc(a.resumo)+'</td><td>'+esc(a.dev)+'</td><td>'+esc(a.status)+'</td><td>'+(a.pontos||'')+'</td><td>'+br(a.acordo)+'</td><td>'+(a.conclusao?br(a.conclusao):'<span class="pill info">aberta</span>')+'</td></tr>'; }).join('')+'</table>';
+  return '<h3 style="margin-top:14px">🔗 Associadas desta issue ('+l.length+') <span style="font-size:11px;color:var(--muted);font-weight:500">informação extra</span></h3><table><tr><th>Associada</th><th>Resumo</th><th>Quem atuou</th><th>Status</th><th>Pts</th><th>Data acordo</th><th>Conclusão</th></tr>'+
+    l.map(function(a){ return '<tr><td><a href="'+esc(a.link)+'" target="_blank"><b>'+esc(a.k)+'</b></a></td><td>'+esc(a.resumo)+'</td><td>'+esc((a.atuacao||[]).map(function(p){return p.nome+' ('+p.papel+')';}).join(', ')||a.dev||'—')+'</td><td>'+esc(a.status)+'</td><td>'+(a.pontos||'')+'</td><td>'+br(a.acordo)+'</td><td>'+(a.conclusao?br(a.conclusao):'<span class="pill info">aberta</span>')+'</td></tr>'; }).join('')+'</table>';
 }
 var _fechar = fecharModal;
 fecharModal = function(){ var e=document.getElementById('detIssue'); if(e) e.remove(); _fechar(); };

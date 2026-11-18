@@ -75,6 +75,7 @@ function resolverCampo_(nome, mapa) {
   if (!nome) return null;
   var k = String(nome).trim().toLowerCase();
   if (k === 'duedate' || k === 'data limite' || k === 'due date') return 'duedate';
+  if (k === 'responsável' || k === 'responsavel' || k === 'assignee') return 'assignee';
   return mapa[k] || null;
 }
 
@@ -95,7 +96,10 @@ function montarJql_(cfg) {
   if (cfg.jqlAdicional) partes.push('(' + cfg.jqlAdicional + ')');
   partes.push('(resolved >= startOfMonth(-' + (cfg.mesesHistorico - 1) + ') OR resolution = EMPTY)');
   if (cfg.filtrarTime && cfg.time.length) {
-    partes.push(q(cfg.campoDev) + ' in (' + cfg.time.map(function (t) { return q(t.usuario); }).join(', ') + ')');
+    // a pessoa do time pode ter atuado como Desenvolvedor ou em outro papel (ex.: Documentador)
+    var lista = '(' + cfg.time.map(function (t) { return q(t.usuario); }).join(', ') + ')';
+    var camposPessoa = [q(cfg.campoDev)].concat(cfg.camposExtraJql || []);
+    partes.push('(' + camposPessoa.map(function (c) { return c + ' in ' + lista; }).join(' OR ') + ')');
   }
   return partes.join(' AND ') + ' ORDER BY updated DESC';
 }
@@ -121,6 +125,7 @@ function buscarIssues_(cfg, ids) {
   var jql = montarJql_(cfg);
   var campos = ['summary', 'status', 'issuetype', 'project', 'labels', 'created', 'updated',
                 'resolutiondate', 'assignee', 'duedate', 'priority'];
+  (ids.extras || []).forEach(function (e) { if (campos.indexOf(e.id) < 0) campos.push(e.id); });
   [ids.dev, ids.pontos, ids.acordo, ids.primeiraAcordo].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
 
   var todas = [], startAt = 0, total = 1, inicio = Date.now();
@@ -162,6 +167,7 @@ function buscarAssociadas_(cfg, ids) {
   var jql = 'project in (' + cfg.projetos.map(q).join(', ') + ') AND issuetype = ' + q(TIPO_ASSOCIADA) +
     ' AND (resolved >= startOfMonth(-' + (cfg.mesesHistorico - 1) + ') OR resolution = EMPTY) ORDER BY updated DESC';
   var campos = ['summary', 'status', 'parent', 'created', 'resolutiondate', 'assignee'];
+  (ids.extras || []).forEach(function (e) { if (campos.indexOf(e.id) < 0) campos.push(e.id); });
   [ids.dev, ids.pontos, ids.acordo].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
   var todas = [], startAt = 0, total = 1;
   while (startAt < total) {
@@ -172,4 +178,30 @@ function buscarAssociadas_(cfg, ids) {
     if (!(r.issues || []).length) break;
   }
   return todas;
+}
+
+/** Pessoas de uma issue por papel: [{usuario, papel}] (Desenvolvedor + campos de atuação extra). */
+function papeisIssue_(f, cfg, ids) {
+  var out = [];
+  var add = function (v, papel) {
+    (Array.isArray(v) ? v : (v ? [v] : [])).forEach(function (u) {
+      var nome = u && (u.name || u.key || u.value);
+      if (nome && !out.some(function (o) { return o.usuario.toLowerCase() === String(nome).toLowerCase() && o.papel === papel; }))
+        out.push({ usuario: String(nome), papel: papel });
+    });
+  };
+  if (ids.dev) add(f[ids.dev], cfg.campoDev);
+  (ids.extras || []).forEach(function (e) { add(f[e.id], e.nome); });
+  return out;
+}
+
+function textoAtuacao_(papeis) {
+  return papeis.map(function (p) { return p.usuario + ':' + p.papel; }).join('; ');
+}
+
+/** Nome seguro do campo para a JQL: assignee, cf[12345] ou "Nome". */
+function nomeJqlCampo_(e) {
+  if (e.id === 'assignee') return 'assignee';
+  if (/^customfield_\d+$/.test(e.id)) return 'cf[' + e.id.split('_')[1] + ']';
+  return '"' + String(e.nome).replace(/"/g, '\\"') + '"';
 }

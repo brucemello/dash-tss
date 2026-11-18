@@ -31,7 +31,7 @@ function montarDados_(cfg, dataRef) {
       conclusao: dt(r['Conclusão']), acordo: dt(r['Data acordo']), acordoOrig: dt(r['Data acordo original']),
       reprog: Number(r['Qtd reprogramações']) || 0, ultimaMov: dt(r['Última movimentação']),
       labels: String(r['Labels'] || ''), link: String(r['Link'] || ''), kpis: kpiPorLabels_(r['Labels'], cfg),
-      resultadoCR: '', obs: '', origem: 'Jira'
+      resultadoCR: '', obs: '', origem: 'Jira', atuacao: parseAtuacao_(r['Atuação'], nomes)
     };
     ordem.push(k);
   });
@@ -120,6 +120,8 @@ function lerFases_(cfg) {
 /** Associadas (subtarefas) para o painel — informação extra, fora dos KPIs. */
 function lerAssociadas_(cfg) {
   var hoje = hoje_();
+  var nomes = {};
+  cfg.time.forEach(function (t) { nomes[t.usuario.toLowerCase()] = t.nome; });
   return lerTabela_(ABA.ASSOC).map(function (r) {
     var conc = r['Conclusão'] instanceof Date ? r['Conclusão'] : null;
     var ac = r['Data acordo'] instanceof Date ? r['Data acordo'] : null;
@@ -129,7 +131,17 @@ function lerAssociadas_(cfg) {
       status: String(r['Status'] || ''), pontos: Number(r['Pontos']) || 0,
       criado: r['Criado'] instanceof Date ? fmtISO_(r['Criado']) : '', conclusao: conc ? fmtISO_(conc) : '',
       acordo: ac ? fmtISO_(ac) : '', aberta: !conc, atrasou: !!ac && (conc ? soData_(conc) > ac : hoje > ac),
-      link: String(r['Link'] || '')
+      link: String(r['Link'] || ''), atuacao: parseAtuacao_(r['Atuação'], nomes), responsavel: String(r['Responsável'] || '')
     };
   });
+}
+
+/** "lucas.rossi:Documentador; x:Desenvolvedor" → [{usuario, nome, papel}] */
+function parseAtuacao_(txt, nomes) {
+  return String(txt || '').split(';').map(function (p) {
+    var i = p.lastIndexOf(':');
+    if (i < 0) return null;
+    var u = p.substring(0, i).trim();
+    return u ? { usuario: u, nome: nomes[u.toLowerCase()] || u, papel: p.substring(i + 1).trim() } : null;
+  }).filter(Boolean);
 }

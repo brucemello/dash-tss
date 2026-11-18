@@ -14,6 +14,9 @@ function diagnosticarIssues(texto) {
   var mapa = getMapaCampos_();
   var idDev = resolverCampo_(cfg.campoDev, mapa);
   var idSP = resolverCampo_(cfg.campoPontos, mapa);
+  var extras = cfg.camposExtra.map(function (n) { return { nome: n, id: resolverCampo_(n, mapa) }; }).filter(function (e) { return e.id; });
+  cfg.camposExtraValidos = extras.map(function (e) { return e.nome; });
+  cfg.camposExtraJql = extras.map(nomeJqlCampo_);
   var idAcordo = resolverPrimeiro_([cfg.campoAcordo, 'customfield_11039', 'Data Acordo Entrega'], mapa) || 'duedate';
   var nomesCampos = {};
   Object.keys(mapa).forEach(function (k) { if (k.indexOf('__nome__') === 0) nomesCampos[k.substring(8)] = mapa[k]; });
@@ -31,7 +34,7 @@ function diagnosticarIssues(texto) {
     var r = { issue: k, entra: false, motivos: [], detalhes: {} };
     var it;
     try {
-      it = jiraGet_('/rest/api/2/issue/' + encodeURIComponent(k), { fields: ['summary', 'project', 'issuetype', 'status', 'resolutiondate', 'assignee', idDev, idSP, idAcordo].filter(Boolean).join(',') });
+      it = jiraGet_('/rest/api/2/issue/' + encodeURIComponent(k), { fields: ['summary', 'project', 'issuetype', 'status', 'resolutiondate', 'assignee', 'parent', idDev, idSP, idAcordo].concat(extras.map(function (e) { return e.id; })).filter(Boolean).join(',') });
     } catch (e) {
       r.motivos.push('❌ Não foi possível ler a issue no Jira (' + String(e.message).substring(0, 120) + ')');
       return r;
@@ -47,6 +50,13 @@ function diagnosticarIssues(texto) {
     var dev = idDev ? f[idDev] : null;
     var devs = (Array.isArray(dev) ? dev : (dev ? [dev] : [])).map(function (u) { return u.name || u.key || u.value || String(u); });
     d.desenvolvedor = devs.length ? devs.join(', ') : '(vazio)';
+    var outros = [];
+    extras.forEach(function (e) {
+      var v = f[e.id];
+      (Array.isArray(v) ? v : (v ? [v] : [])).forEach(function (u) { outros.push({ u: u.name || u.key || u.value || String(u), papel: e.nome }); });
+    });
+    d.outrosPapeis = outros.map(function (o) { return o.papel + ': ' + o.u; }).join(', ');
+    if (f.parent) d.pai = f.parent.key;
     var sp = idSP ? f[idSP] : null;
     d.storyPoints = (sp === null || sp === undefined || sp === '') ? '(vazio)' : sp;
     d.dataAcordo = f[idAcordo] ? fmtBR_(parseJiraDate_(valorCampo_(f[idAcordo]))) : '(vazio)';
@@ -57,7 +67,7 @@ function diagnosticarIssues(texto) {
       r.motivos.push('❌ Projeto "' + (proj.name || '?') + '" não está na lista de projetos da configuração');
     // 2) tipo
     if (f.issuetype && f.issuetype.subtask)
-      r.motivos.push('❌ É subtarefa ("' + f.issuetype.name + '") — subtarefas não entram no Dash');
+      r.motivos.push((f.issuetype.name === TIPO_ASSOCIADA ? 'ℹ️ É associada da ' + (d.pai || '?') + ' — aparece como informação extra (🔗), não nos indicadores' : '❌ É subtarefa ("' + f.issuetype.name + '") — subtarefas não entram no Dash'));
     // 3) story points
     if (d.storyPoints === '(vazio)') r.motivos.push('❌ Story Points vazio (a JQL exige "Story Points" >= 0)');
     else if (Number(sp) < 0) r.motivos.push('❌ Story Points negativo');
@@ -65,9 +75,10 @@ function diagnosticarIssues(texto) {
     if (f.resolutiondate && soData_(parseJiraDate_(f.resolutiondate)) < corte)
       r.motivos.push('❌ Resolvida em ' + d.resolvido + ', antes do período buscado (desde ' + fmtBR_(corte) + ', "Meses de histórico" = ' + cfg.mesesHistorico + ')');
     // 5) desenvolvedor
-    if (!devs.length) r.motivos.push('❌ Campo "' + cfg.campoDev + '" vazio no Jira' + (f.assignee ? ' (responsável é ' + f.assignee.name + ')' : ''));
-    else if (cfg.filtrarTime && !devs.some(function (u) { return timeAtivo[String(u).toLowerCase()]; }))
-      r.motivos.push('❌ "' + cfg.campoDev + '" é ' + devs.join(', ') + ', que não está ativo no bloco 👥 Time');
+    var pessoas = devs.concat(outros.map(function (o) { return o.u; }));
+    if (!pessoas.length) r.motivos.push('❌ "' + [cfg.campoDev].concat(cfg.camposExtraValidos).join('" e "') + '" vazios no Jira' + (f.assignee ? ' (responsável é ' + f.assignee.name + ')' : ''));
+    else if (cfg.filtrarTime && !pessoas.some(function (u) { return timeAtivo[String(u).toLowerCase()]; }))
+      r.motivos.push('❌ Ninguém do 👥 Time atua nela (' + [d.desenvolvedor !== '(vazio)' ? cfg.campoDev + ': ' + d.desenvolvedor : '', d.outrosPapeis].filter(String).join(' · ') + ')');
 
     // confirmação pela própria JQL
     try {
@@ -87,7 +98,7 @@ function diagnosticarIssues(texto) {
   // grava na aba Diagnóstico
   var linhas = resultados.map(function (r) {
     var d = r.detalhes;
-    return [new Date(), r.issue, r.entra ? 'SIM' : 'NÃO', r.motivos.join(' | '), d.desenvolvedor || '', d.responsavel || '',
+    return [new Date(), r.issue, r.entra ? 'SIM' : 'NÃO', r.motivos.join(' | '), (d.desenvolvedor || '') + (d.outrosPapeis ? ' · ' + d.outrosPapeis : ''), d.responsavel || '',
       d.storyPoints === undefined ? '' : String(d.storyPoints), d.tipo || '', d.status || '', d.resolvido || '', d.projeto || '', d.resumo || ''];
   });
   var sh = ss_().getSheetByName('Diagnóstico');
