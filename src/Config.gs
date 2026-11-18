@@ -28,7 +28,7 @@ var BLOCOS = {
 
 var PARAMS_PADRAO = [
   ['URL do Jira', 'https://jiraproducao.totvs.com.br'],
-  ['JQL adicional', '(issuetype not in subTaskIssueTypes() OR issuetype = "Associado (Sub-tarefa)") AND "Story Points" >= 0'],
+  ['JQL adicional', 'issuetype not in subTaskIssueTypes() AND "Story Points" >= 0'],
   ['Meses de histórico', 3],
   ['Campo Desenvolvedor', 'Desenvolvedor'],
   ['Campo Story Points', 'Story Points'],
@@ -182,6 +182,14 @@ function criarConfiguracao() {
 
 /** Corrige valores padrão antigos que não batem com o Jira. */
 function migrarParametros_(sh) {
+  // todos os tipos de issue, sem nenhuma subtarefa (antes aceitava "Associado (Sub-tarefa)")
+  lerBloco_(sh, BLOCOS.PARAMS).forEach(function (r, i) {
+    if (String(r[0]).trim() === 'JQL adicional') {
+      var v = String(r[1] || '');
+      var novo = v.replace(/\(\s*issuetype\s+not\s+in\s+subTaskIssueTypes\(\)\s+OR\s+issuetype\s*=\s*"Associado \(Sub-tarefa\)"\s*\)/i, 'issuetype not in subTaskIssueTypes()');
+      if (novo !== v) sh.getRange(HEADER_ROW + 1 + i, 2).setValue(novo);
+    }
+  });
   var bd = BLOCOS.DEST;
   if (String(sh.getRange(HEADER_ROW, bd.col).getValue()).trim() !== bd.cab[0]) {
     sh.getRange(HEADER_ROW - 1, bd.col).setValue(bd.titulo).setFontWeight('bold').setFontColor('#0EA5E9').setFontSize(12);

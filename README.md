@@ -57,7 +57,7 @@ A JQL é montada a partir da configuração, no mesmo formato usado pelo time:
 
 ```
 project in ("Jornada Transmissão de Dctos Eletrônicos - TSS - OPEX")
-AND ((issuetype not in subTaskIssueTypes() OR issuetype = "Associado (Sub-tarefa)") AND "Story Points" >= 0)
+AND (issuetype not in subTaskIssueTypes() AND "Story Points" >= 0)
 AND (resolved >= startOfMonth(-2) OR resolution = EMPTY)
 AND "Desenvolvedor" in (<usuários do bloco Time>)
 ```

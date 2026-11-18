@@ -56,8 +56,8 @@ function diagnosticarIssues(texto) {
     if (projetosLower.indexOf(String(proj.name || '').toLowerCase()) < 0 && projetosLower.indexOf(String(proj.key || '').toLowerCase()) < 0)
       r.motivos.push('❌ Projeto "' + (proj.name || '?') + '" não está na lista de projetos da configuração');
     // 2) tipo
-    if (f.issuetype && f.issuetype.subtask && f.issuetype.name !== 'Associado (Sub-tarefa)')
-      r.motivos.push('❌ É subtarefa do tipo "' + f.issuetype.name + '" (a JQL só aceita "Associado (Sub-tarefa)")');
+    if (f.issuetype && f.issuetype.subtask)
+      r.motivos.push('❌ É subtarefa ("' + f.issuetype.name + '") — subtarefas não entram no Dash');
     // 3) story points
     if (d.storyPoints === '(vazio)') r.motivos.push('❌ Story Points vazio (a JQL exige "Story Points" >= 0)');
     else if (Number(sp) < 0) r.motivos.push('❌ Story Points negativo');
