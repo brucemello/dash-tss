@@ -227,7 +227,10 @@
 
   <!-- DATAS & ISSUES -->
   <section id="aba-datas" class="esconde">
-    <h2>🗓️ Agenda de data acordo — próximos 14 dias</h2>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin-right:auto">🗓️ Agenda de data acordo — próximos 14 dias</h2>
+      <span class="vis" title="Principais = um dev do time é o Desenvolvedor"><button id="agPrin" class="on" onclick="modoAgenda(true)">⭐ Só principais</button><button id="agTodas" onclick="modoAgenda(false)">Todas (inclui QA, documentação…)</button></span>
+    </div>
     <div class="legenda"><span><i style="background:var(--crit)"></i>Vencida / hoje</span><span><i style="background:var(--serio)"></i>Até <span class="nLembrete"></span> dia(s)</span><span><i style="background:var(--info)"></i>Mais adiante</span></div>
     <div class="agenda" id="agenda"></div>
     <h2>📌 Issues em andamento</h2>
@@ -386,6 +389,8 @@ function d(s){ if(!s) return null; var p=String(s).substring(0,10).split('-'); r
 function dh(s){ return s? new Date(s) : null; }
 function br(s){ var x=d(s); return x? ('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2)+'/'+x.getFullYear() : '—'; }
 var VISAO = 'agora';
+var soPrincipais = true;
+function modoAgenda(v){ soPrincipais = v; document.getElementById('agPrin').classList.toggle('on', v); document.getElementById('agTodas').classList.toggle('on', !v); render(); }
 /** Momento de referência: agora (visão Agora) ou fim do dia da extração (visão D-1). */
 function agoraRef(){ if(D && D.modo==='d1' && D.dataReferencia){ var r = d(D.dataReferencia); r.setHours(23,59,59); return r.getTime(); } return Date.now(); }
 function hoje(){ var x=new Date(agoraRef()); return new Date(x.getFullYear(),x.getMonth(),x.getDate()); }
@@ -511,8 +516,9 @@ function render(){
   renderAssoc(ent);
   renderCharts(ent);
   renderHeat(ent);
-  renderAgenda(abertas);
-  renderAbertas(abertas);
+  var abertasDatas = soPrincipais ? abertas.filter(function(x){ return x.principal !== false; }) : abertas;
+  renderAgenda(abertasDatas);
+  renderAbertas(abertasDatas);
   renderFases(todas, ent, abertas);
   renderDevs(todas, ent, abertas);
 }

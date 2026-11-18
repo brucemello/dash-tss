@@ -4,7 +4,7 @@
 
 var CAB_BASE = ['Issue', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Projeto', 'Tipo', 'Status', 'Fase',
   'Pontos', 'Criado', 'Início', 'Conclusão', 'Data acordo', 'Data acordo original', 'Qtd reprogramações',
-  'Reprogramada?', 'Atrasou?', 'Dias atuação', 'Dias parado', 'Última movimentação', 'Labels', 'Link', 'Atuação'];
+  'Reprogramada?', 'Atrasou?', 'Dias atuação', 'Dias parado', 'Última movimentação', 'Labels', 'Link', 'Atuação', 'Principal?'];
 
 var CAB_ASSOC = ['Issue', 'Issue pai', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Status', 'Pontos', 'Criado', 'Conclusão', 'Data acordo', 'Link', 'Atuação', 'Responsável'];
 
@@ -54,7 +54,7 @@ function sincronizarJira() {
         r.pontos, r.criado, r.inicio || '', r.conclusao || '', r.acordo || '', r.acordoOriginal || '',
         r.qtdReprog, r.qtdReprog > 0 ? 'SIM' : 'NÃO', r.atrasou ? 'SIM' : 'NÃO',
         r.diasAtuacao, r.diasParado, r.ultimaMov || '', r.labels.join(', '),
-        cfg.jiraUrl + '/browse/' + r.chave, textoAtuacao_(papeisIssue_(it.fields || {}, cfg, ids))].concat(kpiVals));
+        cfg.jiraUrl + '/browse/' + r.chave, textoAtuacao_(papeisIssue_(it.fields || {}, cfg, ids)), r.principal ? 'SIM' : 'NÃO'].concat(kpiVals));
       r.segmentos.forEach(function (s) {
         linhasFases.push([r.chave, r.usuario, s.status, s.fase, classificarStatus_(s.status, cfg).ordem,
           s.inicio, s.fim || '', Math.round(((s.fim || new Date()) - s.inicio) / 864000) / 100,
@@ -141,6 +141,11 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
   // Desenvolvedor fora do time (ex.: inativo) → a entrega conta para quem do time atuou (Documentador/Responsável)
   var doTime = {};
   cfg.time.forEach(function (t) { doTime[t.usuario.toLowerCase()] = true; });
+  // Principal = Desenvolvedor do time, ou Desenvolvedor vazio com Responsável do time
+  var campoDevV = ids.dev ? f[ids.dev] : null;
+  if (Array.isArray(campoDevV)) campoDevV = campoDevV[0];
+  var devCampo = campoDevV ? String(campoDevV.name || campoDevV.key || campoDevV.value || '') : '';
+  var principal = devCampo ? !!doTime[devCampo.toLowerCase()] : !!(f.assignee && doTime[String(f.assignee.name || '').toLowerCase()]);
   if (!doTime[String(usuario).toLowerCase()]) {
     var alt = papeisIssue_(f, cfg, ids).filter(function (p) { return doTime[p.usuario.toLowerCase()]; })[0];
     if (alt) { usuario = alt.usuario; devDisplay = alt.usuario; }
@@ -208,6 +213,7 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
 
   return {
     chave: it.key,
+    principal: principal,
     resumo: f.summary || '',
     usuario: usuario,
     devDisplay: devDisplay,

@@ -31,7 +31,8 @@ function montarDados_(cfg, dataRef) {
       conclusao: dt(r['Conclusão']), acordo: dt(r['Data acordo']), acordoOrig: dt(r['Data acordo original']),
       reprog: Number(r['Qtd reprogramações']) || 0, ultimaMov: dt(r['Última movimentação']),
       labels: String(r['Labels'] || ''), link: String(r['Link'] || ''), kpis: kpiPorLabels_(r['Labels'], cfg),
-      resultadoCR: '', obs: '', origem: 'Jira', atuacao: parseAtuacao_(r['Atuação'], nomes)
+      resultadoCR: '', obs: '', origem: 'Jira', atuacao: parseAtuacao_(r['Atuação'], nomes),
+      principal: r['Principal?'] === undefined || String(r['Principal?']).trim() === '' ? true : sim_(r['Principal?'])
     };
     ordem.push(k);
   });
@@ -62,7 +63,7 @@ function montarDados_(cfg, dataRef) {
         reprog: sim_(r['Reprogramada?']) ? 1 : 0, ultimaMov: dt(r['Conclusão']) || dt(r['Início']),
         labels: '', link: cfg.jiraUrl + '/browse/' + k, kpis: man,
         resultadoCR: String(r['Resultado CR'] || ''), obs: String(r['Observação'] || ''),
-        origem: 'Manual', atrasouManual: sim_(r['Atrasou?']), diasManual: Number(r['Dias atuação']) || ''
+        origem: 'Manual', principal: true, atrasouManual: sim_(r['Atrasou?']), diasManual: Number(r['Dias atuação']) || ''
       };
       ordem.push(k);
     }
