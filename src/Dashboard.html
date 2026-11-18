@@ -309,7 +309,7 @@
       <div id="tResultadoBusca" style="margin-top:8px"></div>
       <div id="tMsg" style="margin-top:8px"></div>
       <div class="tbl" style="max-height:300px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:12px"><table id="tTime"></table></div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">A lista é atualizada sozinha todo dia útil antes dos alertas. Usuários que não existem no Jira são desativados para não quebrar a busca.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">A lista é atualizada sozinha todo dia útil antes dos alertas. Nomes que não existem ou estão inativos no Jira são removidos da lista para não quebrar a busca.</div>
     </div>
     <div class="card" style="margin-bottom:14px">
       <h3>🔍 Diagnóstico — por que uma issue não aparece?</h3>
@@ -1055,7 +1055,7 @@ function testar(tipo){
 }
 function desenharTime(){
   document.getElementById('tTeamId').value = CFG.teamIdsTempo || '';
-  var t = CFG.time || [];
+  var t = (CFG.time || []).slice().sort(function(a,b){ return (b.ativo?1:0)-(a.ativo?1:0) || String(a.nome).localeCompare(String(b.nome)); });
   document.getElementById('tTime').innerHTML = '<tr><th>Usuário Jira</th><th>Nome</th><th>E-mail</th><th>Ativo</th></tr>' + (t.length ? t.map(function(x){
     return '<tr style="'+(x.ativo?'':'opacity:.5')+'"><td><b>'+esc(x.usuario)+'</b></td><td>'+esc(x.nome)+'</td><td>'+(x.email?esc(x.email):'<span class="pill warn">sem e-mail</span>')+'</td><td>'+(x.ativo?'<span class="pill ok">SIM</span>':'<span class="pill cinza">NÃO</span>')+'</td></tr>'; }).join('') : '<tr><td colspan="4" class="vazio">Nenhum dev cadastrado.</td></tr>');
 }

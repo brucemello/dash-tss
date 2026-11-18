@@ -4,7 +4,7 @@
  * Lê os membros ativos do(s) Team ID(s) do Tempo, busca no Jira o usuário, nome e e-mail
  * de cada um e atualiza o bloco 👥 Time da configuração.
  *  - quem está no time do Tempo → Ativo = SIM, nome/e-mail preenchidos
- *  - usuário que não existe no Jira (ex.: "LUNA") → Ativo = NÃO (quebraria a JQL)
+ *  - usuário que não existe ou está inativo no Jira (ex.: "LUNA") → removido da lista (quebraria a JQL)
  *  - quem está na planilha mas não no time do Tempo → mantido como está e listado no aviso
  */
 
@@ -112,11 +112,13 @@ function sincronizarTimeTempo() {
       return [t.usuario, nome, email, 'SIM'];
     }
     var j = existeJira[k];
-    if (!j || !j.ativo) { if (sim_(r[3]) || String(r[3]).trim() === '') desativados.push(u); return [u, r[1], r[2], 'NÃO']; }
+    // não existe no Jira (nome antigo da planilha, ex.: "LUNA") ou usuário inativo → sai da lista
+    if (!j || !j.ativo) { desativados.push(u); return null; }
     if (!String(r[2] || '').trim() && j.email) r[2] = j.email;
     if (sim_(r[3]) || String(r[3]).trim() === '') mantidos.push(u);
     return [r[0], r[1], r[2], r[3] || 'SIM'];
   });
+  novas = novas.filter(Boolean);
   var adicionados = [];
   Object.keys(doTime).sort().forEach(function (k) {
     if (naPlanilha[k]) return;
@@ -132,7 +134,7 @@ function sincronizarTimeTempo() {
   var partes = [Object.keys(doTime).length + ' membro(s) no Tempo'];
   if (adicionados.length) partes.push('➕ adicionados: ' + adicionados.join(', '));
   if (atualizados) partes.push('✏️ atualizados: ' + atualizados);
-  if (desativados.length) partes.push('⛔ desativados (não existem no Jira): ' + desativados.join(', '));
+  if (desativados.length) partes.push('🧹 removidos (não existem ou estão inativos no Jira): ' + desativados.join(', '));
   if (mantidos.length) partes.push('ℹ️ na planilha mas fora do time do Tempo (mantidos): ' + mantidos.join(', '));
   if (semEmail.length) partes.push('⚠️ sem e-mail: ' + semEmail.join(', '));
   var msg = partes.join(' | ');
