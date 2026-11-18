@@ -116,3 +116,20 @@ function lerFases_(cfg) {
     };
   });
 }
+
+/** Associadas (subtarefas) para o painel — informação extra, fora dos KPIs. */
+function lerAssociadas_(cfg) {
+  var hoje = hoje_();
+  return lerTabela_(ABA.ASSOC).map(function (r) {
+    var conc = r['Conclusão'] instanceof Date ? r['Conclusão'] : null;
+    var ac = r['Data acordo'] instanceof Date ? r['Data acordo'] : null;
+    return {
+      k: chaveIssue_(r['Issue']), pai: chaveIssue_(r['Issue pai']), resumo: String(r['Resumo'] || ''),
+      usuario: String(r['Usuário Jira'] || ''), dev: String(r['Desenvolvedor'] || r['Usuário Jira'] || ''),
+      status: String(r['Status'] || ''), pontos: Number(r['Pontos']) || 0,
+      criado: r['Criado'] instanceof Date ? fmtISO_(r['Criado']) : '', conclusao: conc ? fmtISO_(conc) : '',
+      acordo: ac ? fmtISO_(ac) : '', aberta: !conc, atrasou: !!ac && (conc ? soData_(conc) > ac : hoje > ac),
+      link: String(r['Link'] || '')
+    };
+  });
+}

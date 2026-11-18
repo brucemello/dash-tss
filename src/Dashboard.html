@@ -156,6 +156,8 @@
   .tidx button.on{background:var(--roxo);color:#fff}
   .tnav{display:flex;gap:6px;align-items:center}
   .tnav button:disabled{opacity:.4;cursor:default}
+  .as-dev{font-size:11px;color:#0369A1;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:5px 8px;margin-top:8px;cursor:pointer}
+  .as-dev:hover{background:#E0F2FE}
   .esconde{display:none!important}
 </style>
 </head>
@@ -211,6 +213,8 @@
     <div class="grid kpis" id="kpisPrincipais"></div>
     <h2>🏷️ Indicadores por label <span style="font-size:12px;color:var(--muted);font-weight:500">— % das entregas do período · clique para auditar</span></h2>
     <div class="grid kpis" id="kpisLabels"></div>
+    <h2>🔗 Associadas (subtarefas) <span style="font-size:12px;color:var(--muted);font-weight:500">— informação extra para avaliar · não entram nos indicadores acima</span></h2>
+    <div class="grid kpis" id="kpisAssoc"></div>
     <div class="grid duas" style="margin-top:16px">
       <div class="card"><h3>Entregas por desenvolvedor</h3><div class="legenda"><span><i style="background:var(--ok)"></i>No prazo</span><span><i style="background:var(--crit)"></i>Atrasou</span></div><div class="chart"><canvas id="chDev"></canvas></div></div>
       <div class="card"><h3>Entregas por semana</h3><div class="legenda"><span><i style="background:var(--s7)"></i>Issues entregues (story points no detalhe)</span></div><div class="chart"><canvas id="chSemana"></canvas></div></div>
@@ -396,6 +400,7 @@ function carregar(modo){
 function receber(r){
   carregando(false);
   D = typeof r === 'string' ? JSON.parse(r) : r;
+  if(D) D._assocPai = null;
   if(!D){ toast('Sem dados'); return; }
   VISAO = D.modo === 'd1' ? 'd1' : 'agora';
   document.getElementById('vAgora').classList.toggle('on', VISAO==='agora');
@@ -488,6 +493,7 @@ function render(){
   var todas = base(), ent = entregues(todas), abertas = todas.filter(function(x){return x.aberta;});
   renderKpis(ent, abertas);
   renderLabels(ent);
+  renderAssoc(ent);
   renderCharts(ent);
   renderHeat(ent);
   renderAgenda(abertas);
@@ -622,11 +628,50 @@ function chip(x){
 function cabTabela(){
   return '<tr><th>Issue</th><th>Resumo</th><th>Dev</th><th>Status / Fase</th><th>Pts</th><th>Início</th><th>Conclusão</th><th>Data acordo</th><th>Dias atuação</th><th>Parado</th><th>Situação</th><th>Labels/KPIs</th><th>Origem</th></tr>';
 }
+// ---------- associadas (subtarefas) ----------
+function assocComoIssue(a){
+  var dpa = a.acordo ? Math.round((d(a.acordo) - hoje())/86400000) : null;
+  return Object.assign({}, a, {fase:'🔗 associada de '+a.pai, origem:'Associada de '+a.pai, kpis:{}, diasParaAcordo:dpa, diasParado:0, labels:'', inicio:a.criado, diasAtuacao:''});
+}
+function assocFiltradas(){
+  var dev = document.getElementById('fDev').value, q = document.getElementById('fBusca').value.trim().toLowerCase();
+  return (D.associadas||[]).filter(function(a){
+    if(dev && a.dev!==dev) return false;
+    if(q && (a.k+' '+a.pai+' '+a.resumo).toLowerCase().indexOf(q)<0) return false;
+    return true;
+  });
+}
+function assocPorPai(){
+  if(!D._assocPai){ D._assocPai = {}; (D.associadas||[]).forEach(function(a){ (D._assocPai[a.pai]=D._assocPai[a.pai]||[]).push(a); }); }
+  return D._assocPai;
+}
+function renderAssoc(ent){
+  var el = document.getElementById('kpisAssoc'); if(!el) return;
+  var todas = assocFiltradas();
+  if(!(D.associadas||[]).length){ el.innerHTML = '<div class="card vazio">Nenhuma associada encontrada (rode ⚡ Atualizar agora).</div>'; return; }
+  var r = intervalo();
+  var noPer = todas.filter(function(a){ if(!a.conclusao) return false; var c=d(a.conclusao); return (!r.ini||c>=r.ini)&&(!r.fim||c<=r.fim); });
+  var abertas = todas.filter(function(a){ return a.aberta; });
+  var pai = assocPorPai();
+  var entCom = ent.filter(function(x){ return pai[x.k]; });
+  var pts = noPer.reduce(function(s,a){ return s+(+a.pontos||0); },0);
+  var devs = {}; noPer.forEach(function(a){ devs[a.dev]=1; });
+  var ord = function(l){ return l.slice().sort(function(a,b){ return a.pai<b.pai?-1:1; }).map(assocComoIssue); };
+  var cards = [
+    {ico:'🔗',rot:'Associadas entregues',val:noPer.length,det:Object.keys(devs).length+' dev(s) envolvidos no período',cor:'#0EA5E9',click:registrar('as1','🔗 Associadas concluídas no período',ord(noPer),'#0EA5E9')},
+    {ico:'🎯',rot:'Pontos em associadas',val:pts,det:'story points das associadas do período',cor:'#0284C7',click:registrar('as2','🎯 Pontos em associadas',ord(noPer),'#0284C7')},
+    {ico:'🛠️',rot:'Associadas abertas',val:abertas.length,det:abertas.filter(function(a){return a.atrasou;}).length+' com data acordo vencida',cor:'#38BDF8',click:registrar('as3','🛠️ Associadas em andamento',ord(abertas),'#0EA5E9')},
+    {ico:'🧩',rot:'Entregas com associadas',val:pct(entCom.length, ent.length)+'%',det:entCom.length+' de '+ent.length+' entregas tiveram apoio',cor:'#06B6D4',pct:pct(entCom.length, ent.length),click:registrar('as4','🧩 Entregas que tiveram associadas',entCom,'#06B6D4')}
+  ];
+  el.innerHTML = cards.map(cardKpi).join('');
+}
+
 function linhaTabela(x){
   var tags = D.kpis.filter(function(k){return x.kpis&&x.kpis[k.id];}).map(function(k){return '<span class="tag" style="background:'+k.cor+'">'+esc(k.nome)+'</span>';}).join('');
   if(x.resultadoCR) tags += '<span class="tag" style="background:#64748B">CR: '+esc(x.resultadoCR)+'</span>';
+  var nAs = x.origem && String(x.origem).indexOf('Associada')===0 ? 0 : ((assocPorPai()[x.k]||[]).length);
   var acordo = br(x.acordo) + (x.reprog>0 ? ' <span class="pill serio" title="Original: '+br(x.acordoOrig)+'">🔁 '+x.reprog+'x</span>' : '');
-  return '<tr class="click" onclick="abrirIssue(\''+x.k+'\')"><td><a href="'+esc(x.link)+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(x.k)+'</b></a></td><td>'+esc(x.resumo)+'</td><td>'+esc(x.dev)+'</td><td>'+esc(x.status)+'<br><span style="color:var(--muted);font-size:11px">'+esc(x.fase)+'</span></td><td>'+(x.pontos||'')+'</td><td>'+br(x.inicio)+'</td><td>'+br(x.conclusao)+'</td><td>'+acordo+'</td><td>'+(x.diasAtuacao||'')+'</td><td>'+(x.aberta?x.diasParado+'d':'')+'</td><td>'+situacao(x)+'</td><td>'+tags+'</td><td style="font-size:11px;color:var(--muted)">'+esc(x.origem)+'</td></tr>';
+  return '<tr class="click" onclick="abrirIssue(\''+x.k+'\')"><td><a href="'+esc(x.link)+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(x.k)+'</b></a>'+(nAs?' <span class="pill info" title="'+nAs+' associada(s) — veja no detalhe da issue">🔗 '+nAs+'</span>':'')+'</td><td>'+esc(x.resumo)+'</td><td>'+esc(x.dev)+'</td><td>'+esc(x.status)+'<br><span style="color:var(--muted);font-size:11px">'+esc(x.fase)+'</span></td><td>'+(x.pontos||'')+'</td><td>'+br(x.inicio)+'</td><td>'+br(x.conclusao)+'</td><td>'+acordo+'</td><td>'+(x.diasAtuacao||'')+'</td><td>'+(x.aberta?x.diasParado+'d':'')+'</td><td>'+situacao(x)+'</td><td>'+tags+'</td><td style="font-size:11px;color:var(--muted)">'+esc(x.origem)+'</td></tr>';
 }
 function renderAbertas(abertas){
   var l = abertas.slice().sort(function(a,b){ var A=a.diasParaAcordo==null?9999:a.diasParaAcordo, B=b.diasParaAcordo==null?9999:b.diasParaAcordo; return A-B; });
@@ -776,7 +821,7 @@ function desenharCiclo(){
 function COR_ETAPA_ORD(f){ var s = D.fases.filter(function(z){return z.fase===f;})[0]; return s ? s.ordem : 50; }
 
 function renderDevs(todas, ent, abertas){
-  var nomes = {}; todas.forEach(function(x){nomes[x.dev]=1;}); D.time.forEach(function(t){nomes[t.nome]=1;});
+  var nomes = {}; todas.forEach(function(x){nomes[x.dev]=1;}); D.time.forEach(function(t){nomes[t.nome]=1;}); (D.associadas||[]).forEach(function(z){ if(z.dev) nomes[z.dev]=1; });
   var fDev = document.getElementById('fDev').value;
   var lista = Object.keys(nomes).filter(function(n){return n && (!fDev || n===fDev);}).sort();
   document.getElementById('cardsDevs').innerHTML = lista.map(function(n,i){
@@ -786,8 +831,12 @@ function renderDevs(todas, ent, abertas){
     LISTAS['dv_'+i] = {titulo:'👤 '+n, lista:e.concat(a), cor:cor, alt:{rotA:'Entregues ('+e.length+')', rotB:'Em andamento ('+a.length+')', a:e, b:a}};
     var kp = D.kpis.map(function(k){ var p=pct(e.filter(function(x){return x.kpis&&x.kpis[k.id];}).length, e.length); return '<div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-top:5px"><span style="width:90px;color:var(--ink2)">'+esc(k.nome)+'</span><div style="flex:1;height:7px;background:#F0EDFA;border-radius:9px;overflow:hidden"><i style="display:block;height:100%;width:'+p+'%;background:'+k.cor+'"></i></div><b style="width:34px;text-align:right">'+p+'%</b></div>'; }).join('');
     var alerta = a.filter(function(x){return x.diasParaAcordo!=null && x.diasParaAcordo<0;}).length;
+    var rI = intervalo(), asDev = (D.associadas||[]).filter(function(z){ if(z.dev!==n || !z.conclusao) return false; var c=d(z.conclusao); return (!rI.ini||c>=rI.ini)&&(!rI.fim||c<=rI.fim); });
+    var asAbertas = (D.associadas||[]).filter(function(z){ return z.dev===n && z.aberta; });
+    LISTAS['dva_'+i] = {titulo:'🔗 Associadas de '+n, lista:asDev.concat(asAbertas).map(assocComoIssue), cor:'#0EA5E9', alt:{rotA:'Entregues no período ('+asDev.length+')', rotB:'Em andamento ('+asAbertas.length+')', a:asDev.map(assocComoIssue), b:asAbertas.map(assocComoIssue)}};
+    var asTxt = (asDev.length||asAbertas.length) ? '<div class="as-dev" onclick="event.stopPropagation();abrirLista(\'dva_'+i+'\')" title="Ver associadas (fora dos KPIs)">🔗 '+asDev.length+' associada(s) entregue(s) · '+asDev.reduce(function(s,z){return s+(+z.pontos||0);},0)+' pts · '+asAbertas.length+' aberta(s) <b>›</b></div>' : '';
     return '<div class="card dev" onclick="abrirLista(\'dv_'+i+'\')"><div class="devtop"><div class="av" style="background:'+cor+'">'+iniciais(n)+'</div><div><b>'+esc(n)+'</b><div style="font-size:11px;color:var(--muted)">'+(alerta?'<span class="pill crit">'+alerta+' vencida(s)</span>':'<span class="pill ok">em dia</span>')+'</div></div></div>'+
-      '<div class="mini"><div><b>'+e.length+'</b><span>entregas</span></div><div><b>'+pr+'%</b><span>no prazo</span></div><div><b>'+a.length+'</b><span>em andamento</span></div></div>'+kp+'</div>';
+      '<div class="mini"><div><b>'+e.length+'</b><span>entregas</span></div><div><b>'+pr+'%</b><span>no prazo</span></div><div><b>'+a.length+'</b><span>em andamento</span></div></div>'+kp+asTxt+'</div>';
   }).join('') || '<div class="card vazio">Sem desenvolvedores.</div>';
 }
 
@@ -826,8 +875,14 @@ function abrirIssue(k){
   abrirLista('iss');
   var h = '<div style="margin-top:14px"><h3>Fases da issue</h3><table><tr><th>Fase</th><th>Status Jira</th><th>Início</th><th>Fim</th><th>Dias</th></tr>'+
     (segs.length ? segs.map(function(s){ return '<tr><td><span class="tag" style="background:'+(COR_FASE[s.fase]||'#A78BFA')+'">'+esc(s.fase)+'</span></td><td>'+esc(s.status)+'</td><td>'+(s.ini?new Date(s.ini).toLocaleString('pt-BR'):'—')+'</td><td>'+(s.fim?new Date(s.fim).toLocaleString('pt-BR'):'<span class="pill info">em andamento</span>')+'</td><td>'+s.dias+'</td></tr>'; }).join('') : '<tr><td colspan="5" class="vazio">Sem histórico de fases (issue manual ou ainda não sincronizada).</td></tr>')+
-    '</table>'+(x.obs?'<p style="font-size:12px;color:var(--ink2)">📝 '+esc(x.obs)+'</p>':'')+'<p><a class="btn solid" style="text-decoration:none;display:inline-block" href="'+esc(x.link)+'" target="_blank">Abrir no Jira ↗</a></p></div>';
+    '</table>'+assocDetalhe(k)+(x.obs?'<p style="font-size:12px;color:var(--ink2)">📝 '+esc(x.obs)+'</p>':'')+'<p><a class="btn solid" style="text-decoration:none;display:inline-block" href="'+esc(x.link)+'" target="_blank">Abrir no Jira ↗</a></p></div>';
   document.getElementById('mTabela').insertAdjacentHTML('afterend', '<div id="detIssue">'+h+'</div>');
+}
+function assocDetalhe(k){
+  var l = assocPorPai()[k] || [];
+  if(!l.length) return '';
+  return '<h3 style="margin-top:14px">🔗 Associadas desta issue ('+l.length+') <span style="font-size:11px;color:var(--muted);font-weight:500">informação extra</span></h3><table><tr><th>Associada</th><th>Resumo</th><th>Dev</th><th>Status</th><th>Pts</th><th>Data acordo</th><th>Conclusão</th></tr>'+
+    l.map(function(a){ return '<tr><td><a href="'+esc(a.link)+'" target="_blank"><b>'+esc(a.k)+'</b></a></td><td>'+esc(a.resumo)+'</td><td>'+esc(a.dev)+'</td><td>'+esc(a.status)+'</td><td>'+(a.pontos||'')+'</td><td>'+br(a.acordo)+'</td><td>'+(a.conclusao?br(a.conclusao):'<span class="pill info">aberta</span>')+'</td></tr>'; }).join('')+'</table>';
 }
 var _fechar = fecharModal;
 fecharModal = function(){ var e=document.getElementById('detIssue'); if(e) e.remove(); _fechar(); };

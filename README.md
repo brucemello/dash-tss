@@ -43,6 +43,13 @@ Bloco **📬 Destinatários** na aba ⚙️ Configuração (ou na aba Configura�
 
 O painel tem botões para enviar um e-mail de teste e um checklist **Pronto para a TL usar?**.
 
+## Associadas (subtarefas) — informação extra
+
+As subtarefas **"Associado (Sub-tarefa)"** não entram nos indicadores, mas são buscadas à parte (mesmos projetos e período, sem filtro de dev) e gravadas na aba **Associadas**. No painel:
+- seção **🔗 Associadas** na Visão geral: entregues, pontos, abertas e % de entregas que tiveram apoio;
+- selo **🔗 n** ao lado da issue principal e lista das associadas no detalhe da issue;
+- no card de cada dev, as associadas que ele entregou e as abertas (clicável). Quem atua só em associadas também ganha card.
+
 ## Abas da planilha
 
 - **⚙️ Configuração** — parâmetros, projetos, labels → KPIs, time (usuário Jira, nome, e-mail) e mapeamento status → fase.

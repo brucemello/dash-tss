@@ -44,7 +44,8 @@ function montarPayload_(modo, dataRef) {
       delete o.email; // o JSON não precisa carregar e-mails
       return o;
     }),
-    fases: lerFases_(cfg)
+    fases: lerFases_(cfg),
+    associadas: lerAssociadas_(cfg)
   };
 }
 

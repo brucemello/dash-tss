@@ -11,6 +11,7 @@ var ABA = {
   BASE: 'Base Jira',
   MANUAL: 'Base Manual',
   FASES: 'Fases',
+  ASSOC: 'Associadas',
   LOG: 'Log',
   LEGADO: 'Entrega por dev'
 };

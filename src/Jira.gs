@@ -150,3 +150,26 @@ function listarCamposJira() {
   sh.setFrozenRows(1);
   sh.activate();
 }
+
+/**
+ * Subtarefas "Associado (Sub-tarefa)": informação extra, fora dos indicadores.
+ * Mesmos projetos e período; sem filtro de dev (mostra quem contribuiu nas issues do time).
+ */
+var TIPO_ASSOCIADA = 'Associado (Sub-tarefa)';
+
+function buscarAssociadas_(cfg, ids) {
+  var q = function (s) { return '"' + String(s).replace(/"/g, '\\"') + '"'; };
+  var jql = 'project in (' + cfg.projetos.map(q).join(', ') + ') AND issuetype = ' + q(TIPO_ASSOCIADA) +
+    ' AND (resolved >= startOfMonth(-' + (cfg.mesesHistorico - 1) + ') OR resolution = EMPTY) ORDER BY updated DESC';
+  var campos = ['summary', 'status', 'parent', 'created', 'resolutiondate', 'assignee'];
+  [ids.dev, ids.pontos, ids.acordo].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
+  var todas = [], startAt = 0, total = 1;
+  while (startAt < total) {
+    var r = jiraGet_('/rest/api/2/search', { jql: jql, startAt: startAt, maxResults: 100, fields: campos.join(',') });
+    total = r.total || 0;
+    todas = todas.concat(r.issues || []);
+    startAt += (r.issues || []).length;
+    if (!(r.issues || []).length) break;
+  }
+  return todas;
+}
