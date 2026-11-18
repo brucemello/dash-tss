@@ -159,6 +159,13 @@
   .as-dev{font-size:11px;color:#0369A1;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:5px 8px;margin-top:8px;cursor:pointer}
   .as-dev:hover{background:#E0F2FE}
   .imp-com{margin-top:6px;font-size:12px;color:#7F1D1D;background:#FEF2F2;border-left:3px solid #DC2626;border-radius:6px;padding:5px 8px;line-height:1.4}
+  tr.grp td{background:linear-gradient(90deg,#E0F2FE,#F0F9FF);border-top:2px solid #7DD3FC;cursor:pointer;font-size:13px;padding:10px 8px;position:sticky}
+  tr.grp:hover td{background:#E0F2FE}
+  .grp-seta{display:inline-block;width:14px;color:#0369A1;font-weight:800}
+  .grp-meta{color:var(--ink2);font-size:12px;margin-left:6px}
+  .grp-cont{float:right;background:#0EA5E9;color:#fff;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700}
+  tr.grp-item td{background:#fff;font-size:12.5px}
+  tr.grp-item td:first-child{padding-left:26px;white-space:nowrap}
   .esconde{display:none!important}
 </style>
 </head>
@@ -341,6 +348,7 @@
       <div class="ferr">
         <input type="search" id="mBusca" placeholder="Filtrar nesta lista…" oninput="renderModal()" style="min-width:260px">
         <span id="mToggle"></span>
+        <span id="mGrpBtns" style="display:none"><button class="btn ghost" onclick="todosGrupos(true)">▾ Expandir tudo</button> <button class="btn ghost" onclick="todosGrupos(false)">▸ Recolher tudo</button></span>
         <span style="flex:1"></span>
         <button class="btn ghost" onclick="exportarCSV()">⬇️ Exportar CSV</button>
       </div>
@@ -707,9 +715,9 @@ function renderAssoc(ent){
   var devs = {}; noPer.forEach(function(a){ devs[a.dev]=1; });
   var ord = function(l){ return l.slice().sort(function(a,b){ return a.pai<b.pai?-1:1; }).map(assocComoIssue); };
   var cards = [
-    {ico:'🔗',rot:'Associadas entregues',val:noPer.length,det:Object.keys(devs).length+' dev(s) envolvidos no período',cor:'#0EA5E9',click:registrar('as1','🔗 Associadas concluídas no período',ord(noPer),'#0EA5E9')},
-    {ico:'🎯',rot:'Pontos em associadas',val:pts,det:'story points das associadas do período',cor:'#0284C7',click:registrar('as2','🎯 Pontos em associadas',ord(noPer),'#0284C7')},
-    {ico:'🛠️',rot:'Associadas abertas',val:abertas.length,det:abertas.filter(function(a){return a.atrasou;}).length+' com data acordo vencida',cor:'#38BDF8',click:registrar('as3','🛠️ Associadas em andamento',ord(abertas),'#0EA5E9')},
+    {ico:'🔗',rot:'Associadas entregues',val:noPer.length,det:Object.keys(devs).length+' dev(s) envolvidos no período',cor:'#0EA5E9',click:registrarAgr('as1','🔗 Associadas concluídas no período',ord(noPer),'#0EA5E9')},
+    {ico:'🎯',rot:'Pontos em associadas',val:pts,det:'story points das associadas do período',cor:'#0284C7',click:registrarAgr('as2','🎯 Pontos em associadas',ord(noPer),'#0284C7')},
+    {ico:'🛠️',rot:'Associadas abertas',val:abertas.length,det:abertas.filter(function(a){return a.atrasou;}).length+' com data acordo vencida',cor:'#38BDF8',click:registrarAgr('as3','🛠️ Associadas em andamento',ord(abertas),'#0EA5E9')},
     {ico:'🧩',rot:'Entregas com associadas',val:pct(entCom.length, ent.length)+'%',det:entCom.length+' de '+ent.length+' entregas tiveram apoio',cor:'#06B6D4',pct:pct(entCom.length, ent.length),click:registrar('as4','🧩 Entregas que tiveram associadas',entCom,'#06B6D4')}
   ];
   el.innerHTML = cards.map(cardKpi).join('');
@@ -892,7 +900,7 @@ function renderDevs(todas, ent, abertas){
     var alerta = a.filter(function(x){return x.diasParaAcordo!=null && x.diasParaAcordo<0;}).length;
     var rI = intervalo(), asDev = (D.associadas||[]).filter(function(z){ if(!atuou(z,n) || !z.conclusao) return false; var c=d(z.conclusao); return (!rI.ini||c>=rI.ini)&&(!rI.fim||c<=rI.fim); });
     var asAbertas = (D.associadas||[]).filter(function(z){ return atuou(z,n) && z.aberta; });
-    LISTAS['dva_'+i] = {titulo:'🔗 Associadas de '+n, lista:asDev.concat(asAbertas).map(assocComoIssue), cor:'#0EA5E9', alt:{rotA:'Entregues no período ('+asDev.length+')', rotB:'Em andamento ('+asAbertas.length+')', a:asDev.map(assocComoIssue), b:asAbertas.map(assocComoIssue)}};
+    LISTAS['dva_'+i] = {agrupar:true, titulo:'🔗 Associadas de '+n, lista:asDev.concat(asAbertas).map(assocComoIssue), cor:'#0EA5E9', alt:{rotA:'Entregues no período ('+asDev.length+')', rotB:'Em andamento ('+asAbertas.length+')', a:asDev.map(assocComoIssue), b:asAbertas.map(assocComoIssue)}};
     var asTxt = (asDev.length||asAbertas.length) ? '<div class="as-dev" onclick="event.stopPropagation();abrirLista(\'dva_'+i+'\')" title="Ver associadas (fora dos KPIs)">🔗 '+asDev.length+' associada(s) entregue(s) · '+asDev.reduce(function(s,z){return s+(+z.pontos||0);},0)+' pts · '+asAbertas.length+' aberta(s) <b>›</b></div>' : '';
     return '<div class="card dev" onclick="abrirLista(\'dv_'+i+'\')"><div class="devtop"><div class="av" style="background:'+cor+'">'+iniciais(n)+'</div><div><b>'+esc(n)+'</b><div style="font-size:11px;color:var(--muted)">'+(alerta?'<span class="pill crit">'+alerta+' vencida(s)</span>':'<span class="pill ok">em dia</span>')+'</div></div></div>'+
       '<div class="mini"><div><b>'+e.length+'</b><span>entregas</span></div><div><b>'+pr+'%</b><span>no prazo</span></div><div><b>'+a.length+'</b><span>em andamento</span></div></div>'+kp+papTxt+asTxt+'</div>';
@@ -902,6 +910,7 @@ function renderDevs(todas, ent, abertas){
 // ---------- modal de auditoria ----------
 function abrirLista(nome){
   var L = LISTAS[nome]; if(!L) return;
+  gruposFechados = {};
   modalState = {L:L, modo:'a'};
   document.getElementById('mBusca').value = '';
   var t = document.getElementById('mTop'); t.style.setProperty('--c1', L.cor); t.style.setProperty('--c2', '#1F1B2E');
@@ -914,11 +923,50 @@ function modoModal(m){ modalState.modo=m; document.getElementById('tgA').classNa
 function listaModal(){
   var L = modalState.L, l = L.alt ? (modalState.modo==='a'?L.alt.a:L.alt.b) : L.lista;
   var q = document.getElementById('mBusca').value.trim().toLowerCase();
-  if(q) l = l.filter(function(x){ return (x.k+' '+x.resumo+' '+x.dev+' '+x.status).toLowerCase().indexOf(q)>=0; });
+  if(q) l = l.filter(function(x){ return (x.k+' '+x.resumo+' '+x.dev+' '+x.status+' '+(x.pai||'')).toLowerCase().indexOf(q)>=0; });
   return l;
 }
+function registrarAgr(nome, titulo, lista, cor){ LISTAS[nome] = {titulo:titulo, lista:lista, cor:cor, agrupar:true}; return "abrirLista('"+nome+"')"; }
+
+var gruposFechados = {};
+function alternarGrupo(pai){ gruposFechados[pai] = !gruposFechados[pai]; renderModal(); }
+function todosGrupos(abrir){ gruposFechados = {}; if(!abrir) listaModal().forEach(function(a){ gruposFechados[a.pai]=true; }); renderModal(); }
+
+/** Associadas agrupadas pela issue pai: cabeçalho do pai + associadas dele. */
+function renderModalAgrupado(l){
+  var grupos = {}, ordem = [];
+  l.forEach(function(a){ if(!grupos[a.pai]){ grupos[a.pai]=[]; ordem.push(a.pai); } grupos[a.pai].push(a); });
+  ordem.sort(function(a,b){ return grupos[b].length - grupos[a].length; });
+  var idx = {}; D.issues.forEach(function(x){ idx[x.k]=x; });
+  var html = '<tr><th style="width:150px">Associada</th><th>Resumo</th><th>Quem atuou</th><th>Status</th><th>Pts</th><th>Criada</th><th>Conclusão</th><th>Data acordo</th><th>Situação</th></tr>';
+  ordem.forEach(function(pai){
+    var g = grupos[pai], p = idx[pai], fechado = !!gruposFechados[pai];
+    var pts = g.reduce(function(s,a){return s+(+a.pontos||0);},0), abertas = g.filter(function(a){return a.aberta;}).length;
+    html += '<tr class="grp" onclick="alternarGrupo(\''+pai+'\')"><td colspan="9">'+
+      '<span class="grp-seta">'+(fechado?'▸':'▾')+'</span> '+
+      '<a href="'+esc((p&&p.link)||((D.params.jiraUrl||'')+'/browse/'+pai))+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(pai)+'</b></a>'+
+      (p ? ' · '+esc(p.resumo)+' <span class="grp-meta">👤 '+esc(p.dev)+' · '+esc(p.status)+(p.acordo?' · acordo '+br(p.acordo):'')+'</span>' : ' <span class="grp-meta">(issue pai fora do Dash)</span>')+
+      '<span class="grp-cont">🔗 '+g.length+' associada(s) · '+pts+' pts'+(abertas?' · '+abertas+' aberta(s)':'')+'</span></td></tr>';
+    if(fechado) return;
+    g.forEach(function(a){
+      var quem = (a.atuacao||[]).map(function(x){ return x.nome+' ('+x.papel+')'; }).join(', ') || a.dev || '—';
+      html += '<tr class="grp-item"><td><span style="color:var(--muted)">↳</span> <a href="'+esc(a.link)+'" target="_blank"><b>'+esc(a.k)+'</b></a></td><td>'+esc(a.resumo)+'</td><td>'+esc(quem)+'</td><td>'+esc(a.status)+'</td><td>'+(a.pontos||'')+'</td><td>'+br(a.criado||a.inicio)+'</td><td>'+(a.conclusao?br(a.conclusao):'—')+'</td><td>'+br(a.acordo)+'</td><td>'+situacaoBase(a)+'</td></tr>';
+    });
+  });
+  return { html: html, grupos: ordem.length };
+}
+
 function renderModal(){
   var l = listaModal(), L = modalState.L;
+  if(L.agrupar){
+    var r = renderModalAgrupado(l);
+    var pts0 = l.reduce(function(s,x){return s+(+x.pontos||0);},0);
+    document.getElementById('mSub').textContent = r.grupos+' issue(s) pai · '+l.length+' associada(s) · '+pts0+' story points';
+    document.getElementById('mTabela').innerHTML = l.length ? r.html : '<tr><td class="vazio">Nada por aqui.</td></tr>';
+    var bt = document.getElementById('mGrpBtns'); if(bt) bt.style.display = '';
+    return;
+  }
+  var bt2 = document.getElementById('mGrpBtns'); if(bt2) bt2.style.display = 'none';
   var pts = l.reduce(function(s,x){return s+(+x.pontos||0);},0), at = l.filter(function(x){return x.atrasou;}).length;
   document.getElementById('mSub').textContent = l.length+' issue(s) · '+pts+' story points · '+at+' com atraso'+(L.sub?' · '+L.sub:'');
   var cab = cabTabela(); if(L.faseCol) cab = cab.replace('<th>Dias atuação</th>','<th>Dias na fase</th>');
