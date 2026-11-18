@@ -122,8 +122,8 @@ function enviarResumoSegunda(paraTeste) {
   if (!para.length) throw new Error('Cadastre ao menos um destinatário com "Resumo de segunda = SIM" (bloco 📬 Destinatários).');
   var hoje = hoje_();
   var abertas = d.issues.filter(function (x) { return x.aberta; });
-  var parados = abertas.filter(function (x) { return x.diasParado >= cfg.diasParado; })
-    .sort(function (a, b) { return b.diasParado - a.diasParado; }).slice(0, 20);
+  var parados = abertas.filter(function (x) { return x.diasParado >= cfg.diasParado || x.impedido; })
+    .sort(function (a, b) { return (b.impedido ? 1 : 0) - (a.impedido ? 1 : 0) || b.diasParado - a.diasParado; }).slice(0, 20);
   var vencidas = abertas.filter(function (x) { return x.diasParaAcordo !== null && x.diasParaAcordo < 0; })
     .sort(function (a, b) { return a.diasParaAcordo - b.diasParaAcordo; });
   var proximas = abertas.filter(function (x) { return x.diasParaAcordo !== null && x.diasParaAcordo >= 0 && x.diasParaAcordo <= 7; })
@@ -238,7 +238,8 @@ function tabelaIssuesHtml_(itens, cfg, modo) {
     else { badge = textoPrazo_(x.diasParaAcordo); cor = x.diasParaAcordo < 0 ? '#EF4444' : (x.diasParaAcordo === 0 ? '#F97316' : '#F59E0B'); }
     return '<tr style="background:' + (i % 2 ? '#FAF5FF' : '#fff') + '">' +
       '<td style="padding:8px"><a href="' + x.link + '" style="color:#7C3AED;font-weight:700;text-decoration:none">' + x.k + '</a></td>' +
-      '<td style="padding:8px">' + esc_(x.resumo).substring(0, 90) + '</td>' +
+      '<td style="padding:8px">' + esc_(x.resumo).substring(0, 90) +
+        (x.aberta && x.impedido ? '<div style="margin-top:4px;font-size:12px;color:#7F1D1D;background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px">🚩 Impedida' + (x.comentarioImpedimento ? ': ' + esc_(x.comentarioImpedimento).substring(0, 200) : '') + '</div>' : '') + '</td>' +
       '<td style="padding:8px">' + esc_(x.dev) + '</td>' +
       '<td style="padding:8px">' + esc_(x.status) + '</td>' +
       '<td style="padding:8px">' + (x.acordo ? fmtBR_(x.acordo) : '—') + '</td>' +

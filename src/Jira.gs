@@ -152,7 +152,7 @@ function buscarIssues_(cfg, ids) {
   var campos = ['summary', 'status', 'issuetype', 'project', 'labels', 'created', 'updated',
                 'resolutiondate', 'assignee', 'duedate', 'priority'];
   (ids.extras || []).forEach(function (e) { if (campos.indexOf(e.id) < 0) campos.push(e.id); });
-  [ids.dev, ids.pontos, ids.acordo, ids.primeiraAcordo].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
+  [ids.dev, ids.pontos, ids.acordo, ids.primeiraAcordo, ids.flag].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
 
   var todas = [], startAt = 0, total = 1, inicio = Date.now();
   while (startAt < total) {
@@ -254,4 +254,28 @@ function buscarSubtarefas_(cfg, ids, chavesPai) {
     }
   }
   return todas;
+}
+
+/** Comentário que explica o impedimento: o mais recente que fala de flag/impedimento; senão, o último. */
+function comentariosImpedimento_(chaves) {
+  var cfg = getConfig(), tok = getJiraToken_(), out = {};
+  var reFlag = /\(flag\)|flag added|impediment|impedi|bloque|sinaliz|aguardando|pend[eê]ncia/i;
+  for (var i = 0; i < chaves.length; i += 30) {
+    var lote = chaves.slice(i, i + 30);
+    var resp = UrlFetchApp.fetchAll(lote.map(function (k) {
+      return { url: cfg.jiraUrl + '/rest/api/2/issue/' + encodeURIComponent(k) + '/comment?maxResults=200', headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' }, muteHttpExceptions: true };
+    }));
+    resp.forEach(function (r, j) {
+      if (r.getResponseCode() !== 200) return;
+      var lista = (JSON.parse(r.getContentText()).comments || []).slice()
+        .sort(function (a, b) { return parseJiraDate_(b.created) - parseJiraDate_(a.created); });
+      if (!lista.length) return;
+      var c = lista.filter(function (x) { return reFlag.test(x.body || ''); })[0] || lista[0];
+      var texto = String(c.body || '')
+        .replace(/\(flag(off)?\)/gi, '').replace(/flag (added|removed)|sinalizador (adicionado|removido)/gi, '').replace(/\{color[^}]*\}/gi, '').replace(/\[~([^\]]+)\]/g, '@$1')
+        .replace(/\s+/g, ' ').trim();
+      out[lote[j]] = { texto: texto.substring(0, 400), autor: (c.author && (c.author.displayName || c.author.name)) || '', quando: parseJiraDate_(c.created) };
+    });
+  }
+  return out;
 }

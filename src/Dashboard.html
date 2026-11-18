@@ -158,6 +158,7 @@
   .tnav button:disabled{opacity:.4;cursor:default}
   .as-dev{font-size:11px;color:#0369A1;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:5px 8px;margin-top:8px;cursor:pointer}
   .as-dev:hover{background:#E0F2FE}
+  .imp-com{margin-top:6px;font-size:12px;color:#7F1D1D;background:#FEF2F2;border-left:3px solid #DC2626;border-radius:6px;padding:5px 8px;line-height:1.4}
   .esconde{display:none!important}
 </style>
 </head>
@@ -529,14 +530,15 @@ function cardKpi(o){
 }
 
 var LISTAS = {};
-function registrar(nome, titulo, lista, cor, extra){ LISTAS[nome] = {titulo:titulo, lista:lista, cor:cor, extra:extra}; return "abrirLista('"+nome+"')"; }
+function registrar(nome, titulo, lista, cor, extra, opc){ LISTAS[nome] = Object.assign({titulo:titulo, lista:lista, cor:cor, extra:extra}, opc||{}); return "abrirLista('"+nome+"')"; }
 
 function renderKpis(ent, abertas){
   var p = D.params;
   var noPrazo = ent.filter(function(x){return !x.atrasou;}), atras = ent.filter(function(x){return x.atrasou;});
   var reprog = ent.filter(function(x){return x.reprog>0;});
   var pontos = ent.reduce(function(s,x){return s+(+x.pontos||0);},0);
-  var parados = abertas.filter(function(x){return x.diasParado>=p.diasParado;});
+  var parados = abertas.filter(function(x){return x.diasParado>=p.diasParado || x.impedido;});
+  var impedidas = abertas.filter(function(x){ return x.impedido; });
   var vencendo = abertas.filter(function(x){return x.diasParaAcordo!=null && x.diasParaAcordo>=0 && x.diasParaAcordo<=p.diasLembrete;});
   var vencidas = abertas.filter(function(x){return x.diasParaAcordo!=null && x.diasParaAcordo<0;});
   var semAcordo = abertas.filter(function(x){return !x.acordo;});
@@ -550,7 +552,8 @@ function renderKpis(ent, abertas){
     {ico:'🔁',rot:'Reprogramadas',val:pct(reprog.length,ent.length)+'%',det:reprog.length+' com data acordo alterada',cor:'#F97316',pct:pct(reprog.length,ent.length),click:registrar('rep','🔁 Data acordo reprogramada',reprog,'#F97316')},
     {ico:'⚙️',rot:'Tempo médio de atuação',val:media.toFixed(1)+'d',det:'dias úteis do início à conclusão',cor:'#06B6D4',click:registrar('tempo','⚙️ Tempo de atuação das entregas',ent.slice().sort(function(a,b){return b.diasAtuacao-a.diasAtuacao;}),'#06B6D4')},
     {ico:'🛠️',rot:'Em andamento',val:abertas.length,det:semAcordo.length+' sem data acordo',cor:'#3B82F6',click:registrar('abe','🛠️ Issues em andamento',abertas,'#3B82F6')},
-    {ico:'🧊',rot:'Parados ≥ '+p.diasParado+' dias',val:parados.length,det:'sem mudança de status',cor:'#64748B',click:registrar('par','🧊 Itens parados',parados.slice().sort(function(a,b){return b.diasParado-a.diasParado;}),'#475569')},
+    {ico:'🧊',rot:'Parados ≥ '+p.diasParado+' dias',val:parados.length,det:'sem mudança de status · '+impedidas.length+' 🚩 impedida(s)',cor:'#64748B',click:registrar('par','🧊 Itens parados',parados.slice().sort(function(a,b){ return (b.impedido?1:0)-(a.impedido?1:0) || b.diasParado-a.diasParado; }),'#475569', null, {sub:'🚩 impedidas primeiro'})},
+    {ico:'🚩',rot:'Em impedimento',val:impedidas.length,det:impedidas.filter(function(x){return x.comentarioImpedimento;}).length+' com comentário do motivo',cor:'#B91C1C',click:registrar('imp','🚩 Issues em impedimento (flag)',impedidas.slice().sort(function(a,b){ return (a.impedidoDesde||'9')<(b.impedidoDesde||'9')?-1:1; }),'#B91C1C')},
     {ico:'⏰',rot:'Vencem em até '+p.diasLembrete+'d',val:vencendo.length,det:'lembrete automático ativo',cor:'#F59E0B',click:registrar('ven','⏰ Vencendo a data acordo',vencendo,'#F59E0B')},
     {ico:'🔴',rot:'Data acordo vencida',val:vencidas.length,det:'abertas e fora do prazo',cor:'#DC2626',click:registrar('vcd','🔴 Abertas com data acordo vencida',vencidas,'#DC2626')}
   ];
@@ -620,6 +623,10 @@ function renderHeat(ent){
 }
 
 function situacao(x){
+  var imp = x.aberta && x.impedido ? '<span class="pill crit" style="background:#B91C1C" title="'+esc(x.comentarioImpedimento||'Sem comentário encontrado')+'">🚩 impedida'+(x.impedidoDesde?' há '+Math.max(0,Math.round((hoje()-d(x.impedidoDesde))/86400000))+'d':'')+'</span><br>' : '';
+  return imp + situacaoBase(x);
+}
+function situacaoBase(x){
   if(!x.aberta) return x.atrasou ? '<span class="pill crit">⏳ entregue c/ atraso</span>' : '<span class="pill ok">✅ no prazo</span>';
   if(x.diasParaAcordo==null) return '<span class="pill cinza">sem data acordo</span>';
   if(x.diasParaAcordo<0) return '<span class="pill crit">🔴 vencida há '+(-x.diasParaAcordo)+'d</span>';
@@ -719,7 +726,7 @@ function linhaTabela(x){
   Object.keys(subPorPessoa).forEach(function(n){ tags += '<span class="tag" style="background:#115E59" title="Subtarefas feitas">🧩 '+esc(n)+': '+esc(subPorPessoa[n].join(', '))+'</span>'; });
   var nAs = x.origem && String(x.origem).indexOf('Associada')===0 ? 0 : ((assocPorPai()[x.k]||[]).length);
   var acordo = br(x.acordo) + (x.reprog>0 ? ' <span class="pill serio" title="Original: '+br(x.acordoOrig)+'">🔁 '+x.reprog+'x</span>' : '');
-  return '<tr class="click" onclick="abrirIssue(\''+x.k+'\')"><td><a href="'+esc(x.link)+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(x.k)+'</b></a>'+(nAs?' <span class="pill info" title="'+nAs+' associada(s) — veja no detalhe da issue">🔗 '+nAs+'</span>':'')+'</td><td>'+esc(x.resumo)+'</td><td>'+esc(x.dev)+'</td><td>'+esc(x.status)+'<br><span style="color:var(--muted);font-size:11px">'+esc(x.fase)+'</span></td><td>'+(x.pontos||'')+'</td><td>'+br(x.inicio)+'</td><td>'+br(x.conclusao)+'</td><td>'+acordo+'</td><td>'+(x.diasAtuacao||'')+'</td><td>'+(x.aberta?x.diasParado+'d':'')+'</td><td>'+situacao(x)+'</td><td>'+tags+'</td><td style="font-size:11px;color:var(--muted)">'+esc(x.origem)+'</td></tr>';
+  return '<tr class="click" onclick="abrirIssue(\''+x.k+'\')"><td><a href="'+esc(x.link)+'" target="_blank" onclick="event.stopPropagation()"><b>'+esc(x.k)+'</b></a>'+(nAs?' <span class="pill info" title="'+nAs+' associada(s) — veja no detalhe da issue">🔗 '+nAs+'</span>':'')+'</td><td>'+esc(x.resumo)+(x.aberta && x.impedido ? '<div class="imp-com">🚩 '+(x.comentarioImpedimento?esc(x.comentarioImpedimento):'<i>Impedimento sem comentário encontrado</i>')+'</div>' : '')+'</td><td>'+esc(x.dev)+'</td><td>'+esc(x.status)+'<br><span style="color:var(--muted);font-size:11px">'+esc(x.fase)+'</span></td><td>'+(x.pontos||'')+'</td><td>'+br(x.inicio)+'</td><td>'+br(x.conclusao)+'</td><td>'+acordo+'</td><td>'+(x.diasAtuacao||'')+'</td><td>'+(x.aberta?x.diasParado+'d':'')+'</td><td>'+situacao(x)+'</td><td>'+tags+'</td><td style="font-size:11px;color:var(--muted)">'+esc(x.origem)+'</td></tr>';
 }
 function renderAbertas(abertas){
   var l = abertas.slice().sort(function(a,b){ var A=a.diasParaAcordo==null?9999:a.diasParaAcordo, B=b.diasParaAcordo==null?9999:b.diasParaAcordo; return A-B; });

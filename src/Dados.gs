@@ -32,6 +32,8 @@ function montarDados_(cfg, dataRef) {
       reprog: Number(r['Qtd reprogramações']) || 0, ultimaMov: dt(r['Última movimentação']),
       labels: String(r['Labels'] || ''), link: String(r['Link'] || ''), kpis: kpiPorLabels_(r['Labels'], cfg),
       resultadoCR: '', obs: '', origem: 'Jira', atuacao: parseAtuacao_(r['Atuação'], nomes),
+      impedido: sim_(r['Impedimento?']), impedidoDesde: dt(r['Impedido desde']),
+      comentarioImpedimento: String(r['Comentário do impedimento'] || ''),
       principal: r['Principal?'] === undefined || String(r['Principal?']).trim() === '' ? true : sim_(r['Principal?'])
     };
     ordem.push(k);
