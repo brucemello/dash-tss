@@ -15,7 +15,8 @@ function onOpen() {
     .addSeparator()
     .addItem('⏰ Enviar lembretes de data acordo agora', 'menuLembretes_')
     .addItem('📬 Enviar resumo de segunda agora', 'menuResumo_')
-    .addItem('⏱️ Instalar gatilhos automáticos', 'menuGatilhos_')
+    .addItem('⏱️ Instalar gatilhos automáticos (e-mails saem da sua conta)', 'menuGatilhos_')
+    .addItem('🧹 Remover meus gatilhos', 'menuRemoverGatilhos_')
     .addToUi();
 }
 
@@ -37,4 +38,5 @@ function menuConfig_() { executarComAviso_(function () { criarConfiguracao(); ga
 function menuImportar_() { executarComAviso_(importarEntregaPorDev, '📥 Importar histórico'); }
 function menuLembretes_() { executarComAviso_(enviarLembretesDataAcordo, '⏰ Lembretes'); }
 function menuResumo_() { executarComAviso_(enviarResumoSegunda, '📬 Resumo de segunda'); }
+function menuRemoverGatilhos_() { executarComAviso_(removerMeusGatilhos, '🧹 Gatilhos'); }
 function menuGatilhos_() { executarComAviso_(instalarGatilhos, '⏱️ Gatilhos'); }

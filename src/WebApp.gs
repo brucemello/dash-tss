@@ -85,9 +85,17 @@ function verificarProntidao() {
   add(cfg.destD1.length, 'Destinatário do resumo diário D-1 (' + (cfg.destD1.join(', ') || 'nenhum') + ')', 'Marque “Resumo diário” para a TL');
   var comEmail = cfg.time.filter(function (t) { return t.email; }).length;
   add(comEmail === cfg.time.length && cfg.time.length, 'E-mail dos devs para os lembretes (' + comEmail + ' de ' + cfg.time.length + ')', 'Preencha a coluna E-mail no bloco 👥 Time da planilha');
+  var dono = props.getProperty('GATILHOS_DONO') || '';
+  add(dono && cfg.emailTL && dono.toLowerCase() === cfg.emailTL.toLowerCase(),
+    'E-mails saem da conta da TL' + (dono ? ' (hoje saem de ' + dono + ')' : ''),
+    'A TL (' + (cfg.emailTL || 'cadastre em Destinatários') + ') abre a planilha com a conta dela → menu 📊 Dash TSS → ⏱️ Instalar gatilhos automáticos');
   var gat = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
-  add(['extracaoD1', 'rotinaDiaria', 'sincronizarAgendado'].every(function (g) { return gat.indexOf(g) >= 0; }),
-    'Gatilhos automáticos (D-1, lembretes, resumo, atualização)', 'Menu 📊 Dash TSS → ⏱️ Instalar gatilhos automáticos');
+  var euEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  var meusOk = ['extracaoD1', 'rotinaDiaria', 'sincronizarAgendado'].every(function (g) { return gat.indexOf(g) >= 0; });
+  // gatilhos de outra pessoa não aparecem para quem está vendo: confia no dono registrado
+  add(dono && dono.toLowerCase() !== euEmail ? true : meusOk,
+    'Gatilhos automáticos (D-1, lembretes, resumo, atualização)' + (dono ? ' — instalados por ' + dono : ''),
+    'Menu 📊 Dash TSS → ⏱️ Instalar gatilhos automáticos');
   var temD1 = false;
   try { temD1 = !!lerArquivoJson_(ARQ_D1); } catch (e) {}
   add(temD1, 'Primeira extração D-1 gerada', 'Menu 📊 Dash TSS → 📅 Gerar extração D-1 agora (ou aguarde a 1h)');

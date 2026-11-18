@@ -80,6 +80,15 @@ Os campos *Desenvolvedor*, *Story Points* e *Data acordo* são localizados pelo 
    5. ⏱️ Instalar gatilhos automáticos
 5. **Implantar → Nova implantação → App da web** (executar como você, acesso ao domínio) e compartilhe a URL com a TL.
 
+## De qual conta saem os e-mails
+
+No Apps Script, os gatilhos rodam como **quem os instalou**, e os e-mails saem dessa conta. Para os e-mails saírem da TL:
+
+1. A TL abre a planilha com a conta dela → menu **📊 Dash TSS → ⏱️ Instalar gatilhos automáticos** (e autoriza).
+2. Pronto: o Dash registra a TL como dona dos gatilhos, e os gatilhos de quem instalou antes param de agir sozinhos (sem e-mail duplicado). Para limpar de vez, quem instalou antes usa **🧹 Remover meus gatilhos**.
+
+Enquanto isso, os e-mails já vão com o **nome da TL** como remetente e com as **respostas indo para ela**.
+
 ## Rotinas automáticas
 
 - `extracaoD1` (todo dia à 1h): grava a extração D-1 em JSON.

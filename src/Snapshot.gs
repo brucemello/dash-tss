@@ -109,6 +109,7 @@ function gerarSnapshotAtual() {
  * do fechamento do dia anterior (mais uma cópia datada para histórico).
  */
 function extracaoD1() {
+  if (typeof euSouDono_ === 'function' && !euSouDono_('Extração D-1')) return 'Extração D-1 ignorada (gatilhos de outra conta).';
   var ontem = hoje_(); ontem.setDate(ontem.getDate() - 1);
   try { sincronizarJira(); } catch (e) { log_('Erro', 'D-1: falha ao sincronizar, usando a última base (' + e.message + ')'); }
   var txt = JSON.stringify(montarPayload_('d1', ontem));

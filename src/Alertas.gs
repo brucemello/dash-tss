@@ -2,19 +2,53 @@
  * Dash TSS — Lembretes de data acordo (diário) e resumo de itens parados (toda segunda)
  */
 
+/**
+ * Os gatilhos rodam como quem os instalou — e os e-mails saem dessa conta.
+ * Por isso a TL deve instalar os gatilhos com a conta dela. O dono fica registrado;
+ * gatilhos de outra pessoa param de agir sozinhos (evita e-mail duplicado).
+ */
+function donoGatilhos_() { return PropertiesService.getScriptProperties().getProperty('GATILHOS_DONO') || ''; }
+function euSouDono_(rotina) {
+  var dono = donoGatilhos_().toLowerCase();
+  var eu = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  if (dono && eu && dono !== eu) {
+    log_('Aviso', rotina + ' ignorada: gatilho de ' + eu + ', mas os gatilhos agora são de ' + dono + '. Use "🧹 Remover meus gatilhos" na conta ' + eu + '.');
+    return false;
+  }
+  return true;
+}
+
+function removerMeusGatilhos() {
+  var n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (['rotinaDiaria', 'sincronizarAgendado', 'extracaoD1'].indexOf(t.getHandlerFunction()) >= 0) { ScriptApp.deleteTrigger(t); n++; }
+  });
+  var eu = Session.getEffectiveUser().getEmail();
+  if (donoGatilhos_().toLowerCase() === String(eu).toLowerCase()) PropertiesService.getScriptProperties().deleteProperty('GATILHOS_DONO');
+  log_('Gatilhos', n + ' gatilho(s) removido(s) da conta ' + eu);
+  return n + ' gatilho(s) removido(s) da sua conta (' + eu + ').';
+}
+
 function instalarGatilhos() {
   var cfg = getConfig();
+  var eu = Session.getEffectiveUser().getEmail();
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (['rotinaDiaria', 'sincronizarAgendado', 'extracaoD1'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('extracaoD1').timeBased().everyDays(1).atHour(1).inTimezone(TZ).create();
   ScriptApp.newTrigger('rotinaDiaria').timeBased().everyDays(1).atHour(cfg.horaAlertas).inTimezone(TZ).create();
   ScriptApp.newTrigger('sincronizarAgendado').timeBased().everyHours(2).create();
-  log_('Gatilhos', 'Instalados: extração D-1 à 1h, rotina diária às ' + cfg.horaAlertas + 'h e sincronização a cada 2h');
-  return 'Gatilhos instalados: extração D-1 todo dia à 1h, alertas às ' + cfg.horaAlertas + 'h (resumo às segundas) e atualização do "Agora" a cada 2h.';
+  var anterior = donoGatilhos_();
+  PropertiesService.getScriptProperties().setProperty('GATILHOS_DONO', eu);
+  log_('Gatilhos', 'Instalados por ' + eu + ' (e-mails sairão desta conta): extração D-1 à 1h, rotina diária às ' + cfg.horaAlertas + 'h e sincronização a cada 2h' +
+    (anterior && anterior.toLowerCase() !== String(eu).toLowerCase() ? '. Os gatilhos de ' + anterior + ' ficam inativos.' : ''));
+  var aviso = cfg.emailTL && String(eu).toLowerCase() !== cfg.emailTL.toLowerCase()
+    ? '\n\n⚠️ Os e-mails vão sair de ' + eu + '. Para saírem da TL (' + cfg.emailTL + '), ela precisa instalar os gatilhos com a conta dela.' : '\n\n✉️ Os e-mails vão sair de ' + eu + '.';
+  return 'Gatilhos instalados: extração D-1 todo dia à 1h, alertas às ' + cfg.horaAlertas + 'h (resumo às segundas) e atualização do "Agora" a cada 2h.' + aviso;
 }
 
 function sincronizarAgendado() {
+  if (!euSouDono_('Sincronização agendada')) return;
   var h = Number(Utilities.formatDate(new Date(), TZ, 'H'));
   var dow = Number(Utilities.formatDate(new Date(), TZ, 'u')); // 1=seg ... 7=dom
   if (dow > 5 || h < 7 || h > 20) return;
@@ -23,6 +57,7 @@ function sincronizarAgendado() {
 
 /** Executada todo dia: sincroniza, envia lembretes (dias úteis) e o resumo às segundas. */
 function rotinaDiaria() {
+  if (!euSouDono_('Rotina diária')) return;
   var cfg = getConfig();
   var dow = Number(Utilities.formatDate(new Date(), TZ, 'u'));
   if (dow > 5) return;
@@ -56,7 +91,7 @@ function enviarLembretesDataAcordo() {
     var html = emailBase_('⏰ Lembrete de data acordo',
       'Olá, ' + itens[0].dev + '! Estas issues estão chegando (ou já passaram) da data acordo:',
       tabelaIssuesHtml_(itens, cfg, 'acordo'), cfg);
-    var opt = { htmlBody: html, name: 'Dash TSS' };
+    var opt = remetente_(cfg, { htmlBody: html });
     if (cfg.copiarTL && cfg.destCopia.length) opt.cc = cfg.destCopia.join(',');
     MailApp.sendEmail(email, assunto, '', opt);
     enviados++;
@@ -64,12 +99,11 @@ function enviarLembretesDataAcordo() {
 
   var avisar = cfg.destCopia.length ? cfg.destCopia : cfg.destResumo;
   if (semEmail.length && avisar.length) {
-    MailApp.sendEmail(avisar.join(','), '⏰ Data acordo — ' + semEmail.length + ' issue(s) de devs sem e-mail cadastrado', '', {
-      name: 'Dash TSS',
+    MailApp.sendEmail(avisar.join(','), '⏰ Data acordo — ' + semEmail.length + ' issue(s) de devs sem e-mail cadastrado', '', remetente_(cfg, {
       htmlBody: emailBase_('⏰ Data acordo — devs sem e-mail',
         'Cadastre o e-mail desses devs no bloco 👥 Time da configuração para eles receberem direto.',
         tabelaIssuesHtml_(semEmail, cfg, 'acordo'), cfg)
-    });
+    }));
   }
   enviarChat_(cfg, '*⏰ Data acordo*: ' + alvo.length + ' issue(s) vencendo em até ' + cfg.diasLembrete +
     ' dia(s) ou vencidas.\n' + alvo.slice(0, 10).map(function (x) {
@@ -111,9 +145,9 @@ function enviarResumoSegunda(paraTeste) {
     secaoEmail_('🔴 Data acordo vencida', vencidas, cfg, 'acordo') +
     secaoEmail_('📅 Vencem nos próximos 7 dias', proximas, cfg, 'acordo');
 
-  MailApp.sendEmail(para.join(','), (paraTeste ? '[TESTE] ' : '') + '📊 Resumo de segunda — Time TSS (' + fmtBR_(hoje) + ')', '', {
-    name: 'Dash TSS', htmlBody: emailBase_('📊 Resumo de segunda — Time TSS', 'Visão rápida do que precisa de atenção nesta semana.', corpo, cfg)
-  });
+  MailApp.sendEmail(para.join(','), (paraTeste ? '[TESTE] ' : '') + '📊 Resumo de segunda — Time TSS (' + fmtBR_(hoje) + ')', '', remetente_(cfg, {
+    htmlBody: emailBase_('📊 Resumo de segunda — Time TSS', 'Visão rápida do que precisa de atenção nesta semana.', corpo, cfg)
+  }));
   if (paraTeste) return 'Resumo de teste enviado para ' + paraTeste;
   enviarChat_(cfg, '*📊 Resumo de segunda — Time TSS*\n🧊 Parados: ' + parados.length + ' | 🔴 Vencidas: ' + vencidas.length +
     ' | 📅 Vencem em 7d: ' + proximas.length + ' | ✅ Entregues semana: ' + entregues.length + '\n' +
@@ -149,11 +183,20 @@ function enviarResumoDiarioD1(paraTeste) {
     secaoEmail_('⏰ Vencendo', vencemHoje, cfg, 'acordo') +
     secaoEmail_('🔴 Vencidas', vencidas, cfg, 'acordo') +
     secaoEmail_('🧊 Mais tempo parados', parados, cfg, 'parado');
-  MailApp.sendEmail(para.join(','), (paraTeste ? '[TESTE] ' : '') + '📅 Fechamento D-1 — Time TSS (' + fmtBR_(ontem) + ')', '', {
-    name: 'Dash TSS', htmlBody: emailBase_('📅 Fechamento D-1 — ' + fmtBR_(ontem), 'O que foi entregue ontem e o que pede atenção hoje.', corpo, cfg)
-  });
+  MailApp.sendEmail(para.join(','), (paraTeste ? '[TESTE] ' : '') + '📅 Fechamento D-1 — Time TSS (' + fmtBR_(ontem) + ')', '', remetente_(cfg, {
+    htmlBody: emailBase_('📅 Fechamento D-1 — ' + fmtBR_(ontem), 'O que foi entregue ontem e o que pede atenção hoje.', corpo, cfg)
+  }));
   log_('Resumo D-1', 'Enviado para ' + para.join(', '));
   return 'Resumo D-1 enviado para ' + para.join(', ');
+}
+
+/** Nome da TL como remetente e respostas indo para ela. */
+function remetente_(cfg, opt) {
+  var tl = (cfg.destinatarios || []).filter(function (d) { return d.ativo && /^tl$/i.test(d.papel); })[0];
+  opt.name = (tl && tl.nome ? tl.nome + ' · ' : '') + 'Dash TSS';
+  var resp = (tl && tl.email) || cfg.emailTL;
+  if (resp) opt.replyTo = resp;
+  return opt;
 }
 
 function textoPrazo_(n) {
