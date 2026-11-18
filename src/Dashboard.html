@@ -166,6 +166,21 @@
   .grp-cont{float:right;background:#0EA5E9;color:#fff;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700}
   tr.grp-item td{background:#fff;font-size:12.5px}
   tr.grp-item td:first-child{padding-left:26px;white-space:nowrap}
+  .sp-barra{display:grid;grid-template-columns:200px 1fr 50px;gap:10px;align-items:center;margin:6px 0;font-size:13px}
+  .sp-lbl{color:var(--ink2);font-weight:600}
+  .sp-trilho{height:12px;background:#F0EDFA;border-radius:99px;overflow:hidden}
+  .sp-trilho i{display:block;height:100%;border-radius:99px}
+  .sp-board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+  .sp-col{flex:0 0 250px;background:#EEEAFB;border-radius:14px;padding:8px;max-height:620px;overflow-y:auto}
+  .sp-col-h{display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:10px;padding:8px 10px;border-top:4px solid #A78BFA;margin-bottom:8px;font-size:13px;position:sticky;top:0}
+  .sp-col-h span{background:#F3F0FF;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700}
+  .sp-card{background:#fff;border-radius:10px;padding:8px 10px;margin-bottom:8px;border-left:4px solid #C4B5FD;box-shadow:0 2px 6px rgba(76,29,149,.08);cursor:pointer;font-size:12px}
+  .sp-card:hover{box-shadow:0 6px 14px rgba(76,29,149,.18)}
+  .sp-card-t{display:flex;justify-content:space-between;align-items:center;color:var(--roxo)}
+  .sp-pts{background:#F3F0FF;color:var(--roxo);border-radius:6px;padding:0 6px;font-weight:800}
+  .sp-card-r{margin:4px 0 6px;color:var(--ink);line-height:1.35}
+  .sp-card-f{display:flex;align-items:center;gap:6px;color:var(--ink2);font-size:11px}
+  .sp-av{width:20px;height:20px;border-radius:50%;color:#fff;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
   .esconde{display:none!important}
 </style>
 </head>
@@ -212,6 +227,7 @@
     <button class="aba on" data-aba="geral" onclick="trocarAba('geral')">✨ Visão geral</button>
     <button class="aba" data-aba="datas" onclick="trocarAba('datas')">📅 Datas &amp; Issues</button>
     <button class="aba" data-aba="fases" onclick="trocarAba('fases')">🔀 Fases</button>
+    <button class="aba" data-aba="sprints" onclick="trocarAba('sprints')">🏃 Sprints</button>
     <button class="aba" data-aba="devs" onclick="trocarAba('devs')">👥 Por desenvolvedor</button>
     <button class="aba" data-aba="config" onclick="trocarAba('config')">⚙️ Configuração</button>
   </div>
@@ -272,6 +288,35 @@
       </div>
       <div id="ciclo"></div>
     </div>
+  </section>
+
+  <!-- SPRINTS -->
+  <section id="aba-sprints" class="esconde">
+    <div class="card sp-topo">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--ink2);font-weight:600;display:flex;flex-direction:column;gap:4px">Sprint
+          <select id="spSel" onchange="SP_ATUAL=this.value; try{localStorage.setItem('dashTssSprint',this.value)}catch(e){}; renderSprint()" style="min-width:320px"></select></label>
+        <span id="spEstado"></span>
+        <button class="btn ghost" id="spAcomp" onclick="alternarAcompanhar()">⭐ Acompanhar esta sprint</button>
+        <span style="flex:1"></span>
+        <span id="spDatas" style="font-size:13px;color:var(--ink2)"></span>
+      </div>
+      <div id="spProgresso" style="margin-top:14px"></div>
+    </div>
+    <div class="grid kpis" id="spKpis" style="margin-top:14px"></div>
+    <div class="grid duas" style="margin-top:14px">
+      <div class="card"><h3>📉 Burndown da sprint</h3>
+        <div class="legenda"><span><i style="background:#A8A3BD"></i>Ideal</span><span><i style="background:var(--s7)"></i>Restante real</span><span><i style="background:var(--s4)"></i>Escopo</span></div>
+        <div class="chart"><canvas id="chBurn"></canvas></div>
+        <div id="spBurnNota" style="font-size:12px;color:var(--muted)"></div></div>
+      <div class="card"><h3>👥 Analistas na sprint</h3>
+        <div style="overflow:auto;max-height:340px"><table id="spDevs"></table></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">Clique numa linha para ver as issues do analista nesta sprint.</div></div>
+    </div>
+    <h2>🗂️ Quadro da sprint por etapa</h2>
+    <div class="sp-board" id="spBoard"></div>
+    <h2>📋 Todas as issues da sprint</h2>
+    <div class="card"><div class="tbl" style="max-height:560px;overflow:auto"><table id="spLista"></table></div></div>
   </section>
 
   <!-- DEVS -->
@@ -530,6 +575,7 @@ function render(){
   renderAbertas(abertasDatas);
   renderFases(todas, ent, abertas);
   renderDevs(todas, ent, abertas);
+  renderSprint();
 }
 
 function cardKpi(o){
@@ -1006,7 +1052,7 @@ function exportarCSV(){
 // ---------- abas / ações ----------
 function trocarAba(a){
   document.querySelectorAll('.aba').forEach(function(b){ b.classList.toggle('on', b.dataset.aba===a); });
-  ['geral','datas','fases','devs','config'].forEach(function(x){ document.getElementById('aba-'+x).classList.toggle('esconde', x!==a); });
+  ['geral','datas','fases','sprints','devs','config'].forEach(function(x){ document.getElementById('aba-'+x).classList.toggle('esconde', x!==a); });
   if(a==='config') carregarConfig();
   Object.keys(charts).forEach(function(k){ charts[k].resize(); });
 }
@@ -1123,6 +1169,9 @@ var TOUR = [
   {cap:'Fases (fluxo)', aba:'fases', alvo:'#chCiclo', alvoCard:true, titulo:'🎯 Previsibilidade', texto:'Cada entrega com o tempo de ciclo. Pontos espalhados = time pouco previsível; pontos concentrados abaixo do P85 = prazos confiáveis. Vermelho = entregue com atraso.'},
   {cap:'Fases (fluxo)', aba:'fases', alvo:'#ciclo', alvoCard:true, titulo:'🧭 Ciclo por issue', texto:'Todas as barras começam no <b>dia 0 (Comprometido)</b>, então dá para comparar. Cheio = trabalho, listrado = fila, 🏁 = data acordo, tracejado = hoje. À direita, o total e o % trabalho/fila.<br>Alterne entre <b>Em andamento</b> e <b>Entregues</b>.'},
 
+  {cap:'Sprints', aba:'sprints', alvo:'.sp-topo', titulo:'🏃 Visão de sprint', texto:'Escolha a sprint e veja tudo dela de ponta a ponta: <b>tempo decorrido × escopo entregue</b> (com o alerta de ritmo), escopo, concluídas, no prazo, <b>adicionadas após o início</b>, impedidas e vencidas.<br>Use <b>⭐ Acompanhar</b> numa sprint de projeto: o Dash passa a trazer <b>todas</b> as issues dela, mesmo de fora do time ou do período.'},
+  {cap:'Sprints', aba:'sprints', alvo:'#chBurn', alvoCard:true, titulo:'📉 Burndown e analistas', texto:'O <b>burndown</b> compara o restante real com o ideal; a linha amarela sobe quando entra item novo no meio da sprint.<br>Ao lado, cada <b>analista</b> com issues, pontos, progresso, impedidas, vencidas e o <b>apoio</b> em outros papéis. Clique na linha para auditar.'},
+  {cap:'Sprints', aba:'sprints', alvo:'#spBoard', titulo:'🗂️ Quadro da sprint', texto:'As issues da sprint por etapa, como um quadro: borda vermelha = data acordo vencida, laranja = vencendo, verde = concluída, vinho = impedida. Abaixo, a lista completa com a data em que cada item entrou na sprint.'},
   {cap:'Por desenvolvedor', aba:'devs', alvo:'#cardsDevs', titulo:'👥 Visão por desenvolvedor', texto:'Entregas, % no prazo, em andamento, vencidas e o uso de cada label por pessoa. Clique no card para ver todas as issues do dev (entregues e em andamento).<br>💡 Bom roteiro para 1:1 e feedback.'},
 
   {cap:'Configuração', aba:'config', alvo:'#cfgPronto', alvoCard:true, titulo:'✅ Pronto para usar?', texto:'Checklist do que falta para tudo funcionar sozinho: token, sincronização, time, destinatários, gatilhos, extração D-1 e o <b>link do painel</b> (com botão copiar).'},
@@ -1196,6 +1245,143 @@ document.addEventListener('keydown', function(e){
 });
 function proxPasso(){ if(tourI===TOUR.length-1) { fecharManual(); toast('🎉 Manual concluído. Reabra pelo botão ❓ Manual.'); } else irPasso(tourI+1); }
 window.addEventListener('resize', function(){ if(document.getElementById('tour').classList.contains('on')) passoTour(); });
+
+// ---------- visão de sprint ----------
+var SP_ATUAL = null;
+function sprintsOrdenadas(){
+  var ordemEst = {ACTIVE:0, FUTURE:1, CLOSED:2};
+  var cont = {}; D.issues.forEach(function(x){ (x.sprints||[]).forEach(function(id){ cont[id]=(cont[id]||0)+1; }); });
+  return (D.sprints||[]).filter(function(s){ return cont[s.id]; }).map(function(s){ s._n = cont[s.id]; return s; })
+    .sort(function(a,b){ return (b.acompanhada?1:0)-(a.acompanhada?1:0) || (ordemEst[a.estado]||9)-(ordemEst[b.estado]||9) || String(b.inicio).localeCompare(String(a.inicio)); });
+}
+function rotuloEstado(e){ return e==='ACTIVE'?'<span class="pill ok">● em andamento</span>':e==='FUTURE'?'<span class="pill info">planejada</span>':'<span class="pill cinza">encerrada</span>'; }
+function diasUteisEntre(a, b){ var n=0, x=new Date(a.getFullYear(),a.getMonth(),a.getDate()), f=new Date(b.getFullYear(),b.getMonth(),b.getDate()); while(x<=f){ if(x.getDay()%6) n++; x.setDate(x.getDate()+1); } return n; }
+
+function prepararSprints(){
+  var l = sprintsOrdenadas(), sel = document.getElementById('spSel');
+  if(!sel) return;
+  if(!l.length){ sel.innerHTML = '<option value="">Nenhuma sprint encontrada nas issues</option>'; SP_ATUAL = null; return; }
+  var salvo = null; try { salvo = localStorage.getItem('dashTssSprint'); } catch(e){}
+  if(!SP_ATUAL || !l.some(function(s){return s.id===SP_ATUAL;})) SP_ATUAL = (salvo && l.some(function(s){return s.id===salvo;})) ? salvo : l[0].id;
+  sel.innerHTML = l.map(function(s){ return '<option value="'+esc(s.id)+'"'+(s.id===SP_ATUAL?' selected':'')+'>'+(s.acompanhada?'⭐ ':'')+esc(s.nome)+' · '+(s.estado==='ACTIVE'?'ativa':s.estado==='FUTURE'?'planejada':'encerrada')+' · '+s._n+' issue(s)</option>'; }).join('');
+}
+
+function issuesDaSprint(id){ return base().filter(function(x){ return (x.sprints||[]).indexOf(id)>=0; }); }
+
+function renderSprint(){
+  if(!D || !document.getElementById('spSel')) return;
+  prepararSprints();
+  var sp = (D.sprints||[]).filter(function(s){ return s.id===SP_ATUAL; })[0];
+  var vazio = function(m){ ['spKpis','spDevs','spBoard','spLista','spProgresso','spBurnNota'].forEach(function(i){ document.getElementById(i).innerHTML=''; }); document.getElementById('spKpis').innerHTML = '<div class="card vazio">'+m+'</div>'; if(charts.chBurn){ charts.chBurn.destroy(); delete charts.chBurn; } };
+  if(!sp){ vazio('Nenhuma sprint nas issues sincronizadas. Rode ⚡ Atualizar agora; se o campo Sprint não existir no Jira, avise.'); return; }
+  var l = issuesDaSprint(sp.id);
+  var ini = sp.inicio ? new Date(sp.inicio) : null, fim = sp.fim ? new Date(sp.fim) : null, fimReal = sp.conclusao ? new Date(sp.conclusao) : fim;
+  document.getElementById('spEstado').innerHTML = rotuloEstado(sp.estado);
+  document.getElementById('spAcomp').textContent = sp.acompanhada ? '★ Acompanhando (clique para parar)' : '⭐ Acompanhar esta sprint';
+  document.getElementById('spAcomp').className = 'btn '+(sp.acompanhada?'solid':'ghost');
+  var agora = new Date(agoraRef());
+  document.getElementById('spDatas').innerHTML = (ini?'🗓️ '+ini.toLocaleDateString('pt-BR'):'')+(fim?' → '+fim.toLocaleDateString('pt-BR'):'')+(sp.estado==='ACTIVE'&&fim?' · <b>'+Math.max(0,diasUteisEntre(agora,fim)-1)+' dia(s) útil(eis) restante(s)</b>':'')+(sp.conclusao?' · encerrada em '+new Date(sp.conclusao).toLocaleDateString('pt-BR'):'');
+  if(!l.length){ vazio('Nenhuma issue desta sprint com os filtros atuais.'); return; }
+
+  // números
+  var usaPts = l.some(function(x){ return +x.pontos>0; });
+  var peso = function(x){ return usaPts ? (+x.pontos||0) : 1; };
+  var unid = usaPts ? 'pts' : 'issues';
+  var entrada = function(x){ var e = x.sprintEntrada && x.sprintEntrada[sp.id]; return e ? new Date(e) : ini; };
+  var adicionadas = ini ? l.filter(function(x){ var e=entrada(x); return e && e.getTime() > ini.getTime()+86400000; }) : [];
+  var concl = l.filter(function(x){ return x.conclusao; }), abertas = l.filter(function(x){ return !x.conclusao; });
+  var concNoPrazo = concl.filter(function(x){ return !x.atrasou; });
+  var imped = abertas.filter(function(x){ return x.impedido; }), venc = abertas.filter(function(x){ return x.diasParaAcordo!=null && x.diasParaAcordo<0; });
+  var semAcordo = abertas.filter(function(x){ return !x.acordo; });
+  var totP = l.reduce(function(s,x){return s+peso(x);},0), concP = concl.reduce(function(s,x){return s+peso(x);},0);
+  var pctConc = pct(concP, totP);
+  var pctTempo = ini && fim ? Math.max(0, Math.min(100, Math.round(((Math.min(agora, fimReal||fim)) - ini)/(fim-ini)*100))) : 0;
+  var ritmo = sp.estado==='CLOSED' ? (pctConc>=100?'ok':'crit') : (pctConc >= pctTempo-10 ? 'ok' : (pctConc >= pctTempo-25 ? 'warn' : 'crit'));
+  var txtRitmo = sp.estado==='CLOSED' ? (pctConc>=100?'✅ Sprint concluída com todo o escopo':'⚠️ Encerrou com '+(100-pctConc)+'% do escopo pendente') :
+    ritmo==='ok' ? '✅ No ritmo: '+pctConc+'% entregue com '+pctTempo+'% do tempo' : ritmo==='warn' ? '⚠️ Atenção: '+pctConc+'% entregue com '+pctTempo+'% do tempo' : '🔴 Atrasada: '+pctConc+'% entregue com '+pctTempo+'% do tempo';
+  document.getElementById('spProgresso').innerHTML =
+    '<div class="sp-barra"><div class="sp-lbl">⏱️ Tempo decorrido</div><div class="sp-trilho"><i style="width:'+pctTempo+'%;background:#A8A3BD"></i></div><b>'+pctTempo+'%</b></div>'+
+    '<div class="sp-barra"><div class="sp-lbl">✅ Escopo entregue ('+unid+')</div><div class="sp-trilho"><i style="width:'+pctConc+'%;background:'+(ritmo==='ok'?'#10B981':ritmo==='warn'?'#F59E0B':'#EF4444')+'"></i></div><b>'+pctConc+'%</b></div>'+
+    '<div class="pill '+ritmo+'" style="margin-top:6px;font-size:12px;padding:4px 12px">'+txtRitmo+'</div>';
+
+  var cards = [
+    {ico:'📦',rot:'Escopo da sprint',val:l.length,det:totP+' '+unid+(adicionadas.length?' · '+adicionadas.length+' adicionada(s) depois':''),cor:'#7C3AED',click:registrar('sp1','📦 Escopo da sprint '+sp.nome,l,'#7C3AED')},
+    {ico:'✅',rot:'Concluídas',val:concl.length,det:pctConc+'% do escopo ('+concP+' '+unid+')',cor:'#10B981',pct:pctConc,click:registrar('sp2','✅ Concluídas na sprint',concl,'#10B981')},
+    {ico:'🎯',rot:'No prazo (data acordo)',val:pct(concNoPrazo.length, concl.length)+'%',det:concNoPrazo.length+' de '+concl.length+' concluídas',cor:'#1baf7a',pct:pct(concNoPrazo.length, concl.length),click:registrar('sp3','🎯 Concluídas com atraso',concl.filter(function(x){return x.atrasou;}),'#EF4444')},
+    {ico:'🛠️',rot:'Em andamento',val:abertas.length,det:semAcordo.length+' sem data acordo',cor:'#3B82F6',click:registrar('sp4','🛠️ Em andamento na sprint',abertas,'#3B82F6')},
+    {ico:'➕',rot:'Adicionadas após o início',val:adicionadas.length,det:adicionadas.reduce(function(s,x){return s+peso(x);},0)+' '+unid+' de mudança de escopo',cor:'#F59E0B',click:registrar('sp5','➕ Entraram depois do início da sprint',adicionadas,'#F59E0B')},
+    {ico:'🚩',rot:'Impedidas',val:imped.length,det:'com flag de impedimento',cor:'#B91C1C',click:registrar('sp6','🚩 Impedidas na sprint',imped,'#B91C1C')},
+    {ico:'🔴',rot:'Data acordo vencida',val:venc.length,det:'abertas fora do prazo',cor:'#DC2626',click:registrar('sp7','🔴 Data acordo vencida na sprint',venc,'#DC2626')}
+  ];
+  document.getElementById('spKpis').innerHTML = cards.map(cardKpi).join('');
+
+  // burndown
+  if(ini && fim){
+    var dias = [], d0 = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate()), dF = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate());
+    for(var x=new Date(d0); x<=dF; x.setDate(x.getDate()+1)) if(x.getDay()%6) dias.push(new Date(x));
+    if(!dias.length) dias.push(d0);
+    var escopoIni = l.filter(function(x){ var e=entrada(x); return !e || e.getTime() <= d0.getTime()+86400000; }).reduce(function(s,x){return s+peso(x);},0);
+    var labels = dias.map(function(dd){ return ('0'+dd.getDate()).slice(-2)+'/'+('0'+(dd.getMonth()+1)).slice(-2); });
+    var ideal = dias.map(function(dd,i){ return +(escopoIni*(1 - (dias.length>1 ? i/(dias.length-1) : 1))).toFixed(1); });
+    var real = [], escopo = [];
+    dias.forEach(function(dd){
+      var fimDia = new Date(dd); fimDia.setHours(23,59,59);
+      var noEscopo = l.filter(function(x){ var e=entrada(x); return !e || e <= fimDia; });
+      escopo.push(noEscopo.reduce(function(s,x){return s+peso(x);},0));
+      real.push(fimDia.getTime() > agora.getTime()+86400000 ? null : noEscopo.filter(function(x){ return !(x.conclusao && d(x.conclusao) <= fimDia); }).reduce(function(s,x){return s+peso(x);},0));
+    });
+    var oB = opc({ plugins:{legend:{display:false}, tooltip:{backgroundColor:'#1F1B2E',padding:10,cornerRadius:8,mode:'index',intersect:false}}, interaction:{mode:'index',intersect:false} });
+    oB.scales.y.title = {display:true, text:unid+' restantes', color:'#9A95B0'};
+    mkChart('chBurn', {type:'line', data:{labels:labels, datasets:[
+      {label:'Ideal', data:ideal, borderColor:'#A8A3BD', borderDash:[6,4], borderWidth:2, pointRadius:0, tension:0},
+      {label:'Restante real', data:real, borderColor:'#6250d6', backgroundColor:'rgba(98,80,214,.12)', fill:true, borderWidth:2.5, pointRadius:3, tension:.15, spanGaps:false},
+      {label:'Escopo', data:escopo, borderColor:'#eda100', borderWidth:2, pointRadius:0, stepped:true}
+    ]}, options:oB});
+    document.getElementById('spBurnNota').textContent = 'Escopo inicial: '+escopoIni+' '+unid+' · escopo atual: '+totP+' '+unid+(adicionadas.length?' (a linha amarela sobe quando entra item novo)':'')+'. Medido em '+unid+'.';
+  } else { if(charts.chBurn){ charts.chBurn.destroy(); delete charts.chBurn; } document.getElementById('spBurnNota').textContent = 'Sprint sem datas de início/fim no Jira.'; }
+
+  // analistas
+  var porDev = {};
+  l.forEach(function(x){ var o = porDev[x.dev] = porDev[x.dev] || {l:[], outros:[]}; o.l.push(x); });
+  l.forEach(function(x){ (x.atuacao||[]).forEach(function(p){ if(p.nome!==x.dev && D.time.some(function(t){return t.nome===p.nome;})){ var o = porDev[p.nome] = porDev[p.nome] || {l:[], outros:[]}; if(o.outros.indexOf(x)<0) o.outros.push(x); } }); });
+  var devs = Object.keys(porDev).sort(function(a,b){ return porDev[b].l.length-porDev[a].l.length; });
+  document.getElementById('spDevs').innerHTML = '<tr><th>Analista</th><th style="text-align:center">Issues</th><th style="text-align:center">'+unid+'</th><th style="text-align:center">Concl.</th><th style="width:110px">Progresso</th><th style="text-align:center">Andamento</th><th style="text-align:center">🚩</th><th style="text-align:center">🔴</th><th style="text-align:center" title="Atuou em outros papéis (QA, documentação, subtarefas)">Apoio</th></tr>'+
+    devs.map(function(n,i){
+      var o = porDev[n], c = o.l.filter(function(x){return x.conclusao;}), pP = o.l.reduce(function(s,x){return s+peso(x);},0), cP = c.reduce(function(s,x){return s+peso(x);},0), pr = pct(cP, pP);
+      var ab = o.l.filter(function(x){return !x.conclusao;});
+      LISTAS['spd_'+i] = {titulo:'👤 '+n+' — sprint '+sp.nome, lista:o.l.concat(o.outros), cor:'#7C3AED', alt:{rotA:'Como dev ('+o.l.length+')', rotB:'Apoio em outros papéis ('+o.outros.length+')', a:o.l, b:o.outros}};
+      return '<tr class="click" onclick="abrirLista(\'spd_'+i+'\')"><td><b>'+esc(n)+'</b></td><td style="text-align:center">'+o.l.length+'</td><td style="text-align:center">'+pP+'</td><td style="text-align:center">'+c.length+'</td>'+
+        '<td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:8px;background:#F0EDFA;border-radius:9px;overflow:hidden"><i style="display:block;height:100%;width:'+pr+'%;background:'+(pr>=pctTempo-10?'#10B981':'#F59E0B')+'"></i></div><span style="font-size:11px">'+pr+'%</span></div></td>'+
+        '<td style="text-align:center">'+ab.length+'</td><td style="text-align:center">'+(ab.filter(function(x){return x.impedido;}).length||'')+'</td><td style="text-align:center">'+(ab.filter(function(x){return x.diasParaAcordo!=null&&x.diasParaAcordo<0;}).length||'')+'</td><td style="text-align:center">'+(o.outros.length||'')+'</td></tr>';
+    }).join('');
+
+  // quadro por etapa
+  var cols = {}; l.forEach(function(x){ var f = x.conclusao ? 'Concluído' : (x.fase||x.status||'—'); (cols[f]=cols[f]||[]).push(x); });
+  var ordem = Object.keys(cols).sort(function(a,b){ var oa = /conclu/i.test(a)?99:(D.ordemFases.indexOf(a)<0?50:D.ordemFases.indexOf(a)), ob = /conclu/i.test(b)?99:(D.ordemFases.indexOf(b)<0?50:D.ordemFases.indexOf(b)); return oa-ob; });
+  document.getElementById('spBoard').innerHTML = ordem.map(function(f){
+    var cor = COR_FASE[f] || (/conclu/i.test(f)?'#10B981':'#A78BFA');
+    return '<div class="sp-col"><div class="sp-col-h" style="border-top-color:'+cor+'"><b>'+esc(f)+'</b><span>'+cols[f].length+'</span></div>'+
+      cols[f].sort(function(a,b){ var A=a.diasParaAcordo==null?999:a.diasParaAcordo, B=b.diasParaAcordo==null?999:b.diasParaAcordo; return A-B; }).map(function(x){
+        var borda = x.impedido ? '#B91C1C' : (x.conclusao ? '#10B981' : (x.diasParaAcordo!=null && x.diasParaAcordo<0 ? '#EF4444' : (x.diasParaAcordo!=null && x.diasParaAcordo<=D.params.diasLembrete ? '#F59E0B' : '#C4B5FD')));
+        return '<div class="sp-card" style="border-left-color:'+borda+'" onclick="abrirIssue(\''+x.k+'\')"><div class="sp-card-t"><b>'+esc(x.k)+'</b>'+(x.pontos?'<span class="sp-pts">'+x.pontos+'</span>':'')+'</div><div class="sp-card-r">'+esc(x.resumo.substring(0,80))+'</div>'+
+          '<div class="sp-card-f"><span class="sp-av" style="background:'+COR_SERIE[Math.abs(hashStr(x.dev))%8]+'">'+iniciais(x.dev)+'</span>'+esc(x.dev)+'<span style="flex:1"></span>'+(x.impedido?'🚩 ':'')+(x.conclusao?'✅ '+br(x.conclusao).substring(0,5):(x.acordo?'🏁 '+br(x.acordo).substring(0,5):'sem acordo'))+'</div></div>';
+      }).join('')+'</div>';
+  }).join('');
+
+  // lista completa
+  var lista = l.slice().sort(function(a,b){ return (a.conclusao?1:0)-(b.conclusao?1:0) || ((a.diasParaAcordo==null?999:a.diasParaAcordo)-(b.diasParaAcordo==null?999:b.diasParaAcordo)); });
+  document.getElementById('spLista').innerHTML = cabTabela().replace('<th>Origem</th>','<th>Entrou na sprint</th>') + lista.map(function(x){
+    var e = entrada(x), add = ini && e && e.getTime() > ini.getTime()+86400000;
+    return linhaTabela(x).replace(/<td style="font-size:11px;color:var\(--muted\)">[^<]*<\/td><\/tr>$/, '<td style="font-size:11px">'+(e?e.toLocaleDateString('pt-BR'):'—')+(add?' <span class="pill warn">➕ depois</span>':'')+'</td></tr>');
+  }).join('');
+}
+function hashStr(t){ var h=0; String(t||'').split('').forEach(function(c){ h=((h<<5)-h)+c.charCodeAt(0); h|=0; }); return h; }
+function alternarAcompanhar(){
+  var sp = (D.sprints||[]).filter(function(s){ return s.id===SP_ATUAL; })[0]; if(!sp) return;
+  var vai = !sp.acompanhada;
+  carregando(true, vai ? 'Acompanhando a sprint e buscando todas as issues dela no Jira…' : 'Atualizando…');
+  chamar('acompanharSprintPainel', [sp.id, sp.nome, vai], function(r){ toast(vai ? '⭐ Sprint acompanhada: todas as issues dela entram no Dash' : 'Sprint deixou de ser acompanhada'); receber(r); trocarAba('sprints'); });
+}
 
 window.addEventListener('load', function(){ carregar('agora'); });
 // primeira visita: oferece o manual

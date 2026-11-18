@@ -127,7 +127,13 @@ function montarJql_(cfg) {
     var camposPessoa = [q(cfg.campoDev)].concat(cfg.camposExtraJql || []);
     partes.push('(' + camposPessoa.map(function (c) { return c + ' in ' + lista; }).join(' OR ') + ')');
   }
-  return partes.join(' AND ') + ' ORDER BY updated DESC';
+  var base = partes.join(' AND ');
+  // sprints acompanhadas: todas as issues delas entram, mesmo fora do time ou do período
+  if (cfg.sprintsAcomp && cfg.sprintsAcomp.length) {
+    var vals = cfg.sprintsAcomp.map(function (v) { return /^\d+$/.test(v) ? v : q(v); }).join(', ');
+    base = '(' + base + ') OR (sprint in (' + vals + ') AND issuetype not in subTaskIssueTypes())';
+  }
+  return base + ' ORDER BY updated DESC';
 }
 
 /** Busca todas as issues (paginado) com changelog. */
@@ -152,7 +158,7 @@ function buscarIssues_(cfg, ids) {
   var campos = ['summary', 'status', 'issuetype', 'project', 'labels', 'created', 'updated',
                 'resolutiondate', 'assignee', 'duedate', 'priority'];
   (ids.extras || []).forEach(function (e) { if (campos.indexOf(e.id) < 0) campos.push(e.id); });
-  [ids.dev, ids.pontos, ids.acordo, ids.primeiraAcordo, ids.flag].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
+  [ids.dev, ids.pontos, ids.acordo, ids.primeiraAcordo, ids.flag, ids.sprint].forEach(function (f) { if (f && campos.indexOf(f) < 0) campos.push(f); });
 
   var todas = [], startAt = 0, total = 1, inicio = Date.now();
   while (startAt < total) {
@@ -278,4 +284,19 @@ function comentariosImpedimento_(chaves) {
     });
   }
   return out;
+}
+
+/** Lê o campo Sprint (texto do GreenHopper no Jira Server ou objeto) → [{id, nome, estado, inicio, fim, conclusao}] */
+function parseSprints_(v) {
+  var lista = Array.isArray(v) ? v : (v ? [v] : []);
+  return lista.map(function (s) {
+    if (s && typeof s === 'object') {
+      return { id: String(s.id), nome: s.name || '', estado: String(s.state || '').toUpperCase(),
+        inicio: s.startDate || '', fim: s.endDate || '', conclusao: s.completeDate || '' };
+    }
+    var t = String(s || '');
+    var pega = function (k) { var m = t.match(new RegExp('[\\[,]' + k + '=([^,\\]]*)')); return m && m[1] !== '<null>' ? m[1] : ''; };
+    var id = pega('id');
+    return id ? { id: id, nome: pega('name'), estado: pega('state').toUpperCase(), inicio: pega('startDate'), fim: pega('endDate'), conclusao: pega('completeDate') } : null;
+  }).filter(Boolean);
 }

@@ -32,6 +32,8 @@ function montarDados_(cfg, dataRef) {
       reprog: Number(r['Qtd reprogramações']) || 0, ultimaMov: dt(r['Última movimentação']),
       labels: String(r['Labels'] || ''), link: String(r['Link'] || ''), kpis: kpiPorLabels_(r['Labels'], cfg),
       resultadoCR: '', obs: '', origem: 'Jira', atuacao: parseAtuacao_(r['Atuação'], nomes),
+      sprints: String(r['Sprints'] || '').split(',').map(function (x) { return x.trim(); }).filter(String),
+      sprintEntrada: (function (t) { var o = {}; String(t || '').split(';').forEach(function (p) { var i = p.indexOf('='); if (i > 0) o[p.substring(0, i).trim()] = p.substring(i + 1).trim(); }); return o; })(r['Entrada na sprint']),
       impedido: sim_(r['Impedimento?']), impedidoDesde: dt(r['Impedido desde']),
       comentarioImpedimento: String(r['Comentário do impedimento'] || ''),
       principal: r['Principal?'] === undefined || String(r['Principal?']).trim() === '' ? true : sim_(r['Principal?'])
@@ -162,4 +164,34 @@ function lerSubtarefas_(cfg) {
       conclusao: r['Conclusão'] instanceof Date ? fmtISO_(r['Conclusão']) : '', link: String(r['Link'] || '')
     };
   });
+}
+
+/** Sprints vistas nas issues do Dash. */
+function lerSprints_(cfg) {
+  var acomp = (cfg.sprintsAcomp || []).map(function (x) { return String(x).toLowerCase(); });
+  return lerTabela_(ABA.SPRINTS).map(function (r) {
+    var id = String(r['ID']), nome = String(r['Sprint'] || '');
+    return {
+      id: id, nome: nome, estado: String(r['Estado'] || ''),
+      inicio: r['Início'] instanceof Date ? fmtISOHora_(r['Início']) : '',
+      fim: r['Fim'] instanceof Date ? fmtISOHora_(r['Fim']) : '',
+      conclusao: r['Conclusão'] instanceof Date ? fmtISOHora_(r['Conclusão']) : '',
+      acompanhada: acomp.indexOf(id.toLowerCase()) >= 0 || acomp.indexOf(nome.toLowerCase()) >= 0
+    };
+  });
+}
+
+/** Marca/desmarca uma sprint como acompanhada (todas as issues dela entram no Dash). */
+function acompanharSprint(id, nome, acompanhar) {
+  var sh = ss_().getSheetByName(ABA.CONFIG) || criarConfiguracao();
+  var linhas = lerBloco_(sh, BLOCOS.PARAMS), linha = -1, atual = [];
+  for (var i = 0; i < linhas.length; i++) {
+    if (String(linhas[i][0]).trim() === 'Sprints acompanhadas (IDs ou nomes)') { linha = i; atual = String(linhas[i][1] || '').split(/[,;]/).map(function (x) { return x.trim(); }).filter(String); }
+  }
+  atual = atual.filter(function (x) { return x !== String(id) && x.toLowerCase() !== String(nome || '').toLowerCase(); });
+  if (acompanhar) atual.push(String(id));
+  if (linha < 0) sh.getRange(HEADER_ROW + 1 + linhas.length, 1, 1, 2).setValues([['Sprints acompanhadas (IDs ou nomes)', atual.join(', ')]]);
+  else sh.getRange(HEADER_ROW + 1 + linha, 2).setValue(atual.join(', '));
+  log_('Sprint', (acompanhar ? 'Acompanhando ' : 'Deixou de acompanhar ') + (nome || id));
+  return atual;
 }

@@ -4,7 +4,7 @@
 
 var CAB_BASE = ['Issue', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Projeto', 'Tipo', 'Status', 'Fase',
   'Pontos', 'Criado', 'Início', 'Conclusão', 'Data acordo', 'Data acordo original', 'Qtd reprogramações',
-  'Reprogramada?', 'Atrasou?', 'Dias atuação', 'Dias parado', 'Última movimentação', 'Labels', 'Link', 'Atuação', 'Principal?', 'Impedimento?', 'Impedido desde', 'Comentário do impedimento'];
+  'Reprogramada?', 'Atrasou?', 'Dias atuação', 'Dias parado', 'Última movimentação', 'Labels', 'Link', 'Atuação', 'Principal?', 'Impedimento?', 'Impedido desde', 'Comentário do impedimento', 'Sprints', 'Entrada na sprint'];
 
 var CAB_ASSOC = ['Issue', 'Issue pai', 'Resumo', 'Usuário Jira', 'Desenvolvedor', 'Status', 'Pontos', 'Criado', 'Conclusão', 'Data acordo', 'Link', 'Atuação', 'Responsável'];
 
@@ -26,7 +26,8 @@ function sincronizarJira() {
       pontos: resolverCampo_(cfg.campoPontos, mapa),
       acordo: resolverPrimeiro_([cfg.campoAcordo, 'customfield_11039', 'Data Acordo Entrega', 'Data acordo'], mapa),
       primeiraAcordo: resolverPrimeiro_([cfg.campoPrimeiraAcordo, 'Primeira Data Acordo'], mapa),
-      flag: resolverPrimeiro_(['Flagged', 'Sinalizado', 'Sinalizador', 'Impedimento', 'Flag'], mapa)
+      flag: resolverPrimeiro_(['Flagged', 'Sinalizado', 'Sinalizador', 'Impedimento', 'Flag'], mapa),
+      sprint: resolverPrimeiro_(['Sprint'], mapa)
     };
     ids.extras = cfg.camposExtra.map(function (n) { return { nome: n, id: resolverCampo_(n, mapa) }; })
       .filter(function (e) { if (!e.id) log_('Aviso', 'Campo de atuação "' + e.nome + '" não encontrado no Jira; ignorado.'); return !!e.id; });
@@ -44,7 +45,7 @@ function sincronizarJira() {
     var linhasBase = [], linhasFases = [];
     var kpiCab = cfg.kpis.map(function (k) { return 'KPI • ' + k.nome; });
 
-    var impedidas = [];
+    var impedidas = [], todasSprints = {};
     res.issues.forEach(function (it) {
       var r = processarIssue_(it, cfg, ids, nomeAcordo);
       var nomeDev = nomes[String(r.usuario).toLowerCase()] || r.devDisplay || r.usuario;
@@ -57,7 +58,10 @@ function sincronizarJira() {
         r.qtdReprog, r.qtdReprog > 0 ? 'SIM' : 'NÃO', r.atrasou ? 'SIM' : 'NÃO',
         r.diasAtuacao, r.diasParado, r.ultimaMov || '', r.labels.join(', '),
         cfg.jiraUrl + '/browse/' + r.chave, textoAtuacao_(papeisIssue_(it.fields || {}, cfg, ids)), r.principal ? 'SIM' : 'NÃO',
-        r.impedido ? 'SIM' : 'NÃO', r.impedidoDesde || '', ''].concat(kpiVals));
+        r.impedido ? 'SIM' : 'NÃO', r.impedidoDesde || '', '',
+        r.sprints.map(function (sp) { return sp.id; }).join(', '),
+        Object.keys(r.sprintEntrada).map(function (k) { return k + '=' + fmtISOHora_(r.sprintEntrada[k]); }).join('; ')].concat(kpiVals));
+      r.sprints.forEach(function (sp) { todasSprints[sp.id] = sp; });
       if (r.impedido) impedidas.push({ chave: r.chave, linha: linhasBase.length - 1 });
       r.segmentos.forEach(function (s) {
         linhasFases.push([r.chave, r.usuario, s.status, s.fase, classificarStatus_(s.status, cfg).ordem,
@@ -78,6 +82,14 @@ function sincronizarJira() {
       } catch (e) { log_('Aviso', 'Comentários de impedimento não lidos: ' + e.message); }
       log_('Sync', impedidas.length + ' issue(s) com impedimento (flag)');
     }
+
+    // lista de sprints vistas nas issues
+    var linhasSp = Object.keys(todasSprints).map(function (k) {
+      var sp = todasSprints[k];
+      return [sp.id, sp.nome, sp.estado, parseJiraDate_(sp.inicio) || '', parseJiraDate_(sp.fim) || '', parseJiraDate_(sp.conclusao) || ''];
+    }).sort(function (a, b) { return (b[3] || 0) - (a[3] || 0); });
+    var shSp = escreverTabela_(ABA.SPRINTS, ['ID', 'Sprint', 'Estado', 'Início', 'Fim', 'Conclusão'], linhasSp, '#7C3AED');
+    if (linhasSp.length) shSp.getRange(2, 4, linhasSp.length, 3).setNumberFormat('dd/MM/yyyy HH:mm');
 
     var shB = escreverTabela_(ABA.BASE, CAB_BASE.concat(kpiCab), linhasBase, '#4C1D95');
     if (linhasBase.length) {
@@ -177,7 +189,7 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
     .sort(function (a, b) { return parseJiraDate_(a.created) - parseJiraDate_(b.created); });
 
   // Segmentos de status (fases) e reprogramações de data acordo
-  var flagDesde = null;
+  var flagDesde = null, sprintEntrada = {};
   var segmentos = [], qtdReprog = 0, acordoOriginal = null, statusInicial = null, ultimaMov = criado;
   var transicoes = [];
   hist.forEach(function (h) {
@@ -189,6 +201,9 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
         if (statusInicial === null) statusInicial = i.fromString;
         transicoes.push({ quando: quando, de: i.fromString, para: i.toString });
         ultimaMov = quando;
+      } else if (campo === 'sprint' || (ids.sprint && fid === String(ids.sprint).toLowerCase())) {
+        var de = String(i.from || '').split(/\s*,\s*/), para = String(i.to || '').split(/\s*,\s*/);
+        para.forEach(function (sid) { if (sid && de.indexOf(sid) < 0 && !sprintEntrada[sid]) sprintEntrada[sid] = quando; });
       } else if (ids.flag && (fid === String(ids.flag).toLowerCase() || /^(flagged|sinalizado|sinalizador|impedimento|flag)$/i.test(campo))) {
         flagDesde = i.toString || i.to ? quando : null;
       } else if (campo === nomeAcordo || fid === String(ids.acordo).toLowerCase() ||
@@ -254,6 +269,8 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
     ultimaMov: ultimaMov,
     labels: f.labels || [],
     segmentos: segmentos,
+    sprints: ids.sprint ? parseSprints_(f[ids.sprint]) : [],
+    sprintEntrada: sprintEntrada,
     impedido: !conclusao && !!(ids.flag && f[ids.flag] && (!Array.isArray(f[ids.flag]) || f[ids.flag].length)),
     impedidoDesde: !conclusao && ids.flag && f[ids.flag] ? flagDesde : null
   };

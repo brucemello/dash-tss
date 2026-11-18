@@ -62,6 +62,13 @@ function buscarTimeTempoPainel(ids) {
   return r;
 }
 
+/** Painel: acompanhar sprint e já sincronizar para trazer todas as issues dela. */
+function acompanharSprintPainel(id, nome, acompanhar) {
+  acompanharSprint(id, nome, acompanhar);
+  if (acompanhar) sincronizarJira(); else { try { gerarSnapshotAtual(); } catch (e) {} }
+  return lerSnapshot('agora');
+}
+
 /** Envia um e-mail de teste do tipo escolhido para um destinatário. */
 function enviarTeste(email, tipo) {
   if (!email) throw new Error('Informe o e-mail.');

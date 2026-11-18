@@ -13,6 +13,7 @@ var ABA = {
   FASES: 'Fases',
   ASSOC: 'Associadas',
   SUBT: 'Subtarefas',
+  SPRINTS: 'Sprints',
   LOG: 'Log',
   LEGADO: 'Entrega por dev'
 };
@@ -39,6 +40,7 @@ var PARAMS_PADRAO = [
   ['Campo Primeira Data acordo', 'Primeira Data Acordo'],
   ['Filtrar só devs do Time', 'SIM'],
   ['Team ID do Tempo', ''],
+  ['Sprints acompanhadas (IDs ou nomes)', ''],
   ['Atualizar time pelo Tempo todo dia', 'SIM'],
   ['Fase que marca início', 'Desenvolvimento'],
   ['E-mail da TL', ''],
@@ -333,6 +335,7 @@ function getConfig() {
     campoPrimeiraAcordo: String(p['Campo Primeira Data acordo'] || '').trim(),
     filtrarTime: sim_(p['Filtrar só devs do Time']),
     teamIdsTempo: String(p['Team ID do Tempo'] || '').trim(),
+    sprintsAcomp: String(p['Sprints acompanhadas (IDs ou nomes)'] || '').split(/[,;\n]/).map(function (x) { return x.trim(); }).filter(String),
     timeTempoDiario: String(p['Atualizar time pelo Tempo todo dia'] || 'SIM').trim() === '' || sim_(p['Atualizar time pelo Tempo todo dia']),
     faseInicio: String(p['Fase que marca início'] || 'Desenvolvimento').trim(),
     emailTL: (ativos.filter(function (x) { return /^tl$/i.test(x.papel); })[0] || ativos[0] || { email: emailTLparam }).email || '',

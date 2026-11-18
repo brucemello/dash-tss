@@ -50,6 +50,14 @@ Uma pessoa do time pode atuar numa issue como **Desenvolvedor**, **Documentador*
 - Filtrar por um dev mostra tudo em que ele atuou; o card dele mostra "📝 Também atuou em N issue(s)", clicável.
 - Nas tabelas, o papel aparece como etiqueta (ex.: "📝 Documentador: Lucas").
 
+## Visão de sprint (🏃 Sprints)
+
+O Dash lê o campo **Sprint** das issues (e quando cada issue entrou na sprint, pelo histórico). Na aba 🏃 Sprints:
+- seletor de sprint (ativas primeiro), tempo decorrido × escopo entregue e alerta de ritmo;
+- cards: escopo, concluídas, no prazo, em andamento, **adicionadas após o início**, impedidas e data acordo vencida;
+- **burndown** (ideal × real × escopo), **analistas na sprint** (como dev e apoio em outros papéis), **quadro por etapa** e lista completa;
+- **⭐ Acompanhar esta sprint**: grava em *Sprints acompanhadas* e a busca passa a trazer todas as issues dela, mesmo de fora do time ou do período.
+
 ## Associadas (subtarefas) — informação extra
 
 As subtarefas **"Associado (Sub-tarefa)"** não entram nos indicadores, mas são buscadas à parte (mesmos projetos e período, sem filtro de dev) e gravadas na aba **Associadas**. No painel:
