@@ -118,6 +118,13 @@ function processarIssue_(it, cfg, ids, nomeAcordo) {
   if (!devObj) devObj = f.assignee;
   var usuario = devObj ? (devObj.name || devObj.key || devObj.value || String(devObj)) : '(sem dev)';
   var devDisplay = devObj ? (devObj.displayName || devObj.value || usuario) : '';
+  // Desenvolvedor fora do time (ex.: inativo) → a entrega conta para quem do time atuou (Documentador/Responsável)
+  var doTime = {};
+  cfg.time.forEach(function (t) { doTime[t.usuario.toLowerCase()] = true; });
+  if (!doTime[String(usuario).toLowerCase()]) {
+    var alt = papeisIssue_(f, cfg, ids).filter(function (p) { return doTime[p.usuario.toLowerCase()]; })[0];
+    if (alt) { usuario = alt.usuario; devDisplay = alt.usuario; }
+  }
 
   var criado = parseJiraDate_(f.created);
   var conclusao = parseJiraDate_(f.resolutiondate);
